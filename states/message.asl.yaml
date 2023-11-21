@@ -1,0 +1,40 @@
+StartAt: SendTyping
+States:
+  SendTyping:
+    Type: Task
+    Resource: 'arn:aws:states:::events:putEvents'
+    Parameters:
+      Entries:
+        - EventBusName: ${EventBusName}
+          Source: ${EventSource}
+          DetailType: Send Chat Action
+          Detail:
+            chat_id.$: $.detail.message.chat.id
+            action: typing
+    ResultPath: null
+    Next: GetResponse
+
+  GetResponse:
+    Type: Task
+    Resource: '${BedrockIntegrationFunctionArn}'
+    Parameters:
+      chat_id.$: $.detail.message.chat.id
+      user.$: $.detail.message.from.first_name
+      lang.$: $.detail.message.from.language_code
+      text.$: $.detail.message.text
+    ResultPath: $.response
+    Next: SendResponse
+  
+  SendResponse:
+    Type: Task
+    Resource: 'arn:aws:states:::events:putEvents'
+    Parameters:
+      Entries:
+        - EventBusName: ${EventBusName}
+          Source: ${EventSource}
+          DetailType: Send Message
+          Detail:
+            chat_id.$: $.detail.message.chat.id
+            text.$: $.response
+    ResultPath: null
+    End: true

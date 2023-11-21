@@ -1,0 +1,336 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: Telegram Bot Connector for Bedrock
+
+Parameters:
+  TelegramBotToken:
+    Type: String
+    Description: Telegram bot token
+    NoEcho: true
+  TelegramIPsWhitelist:
+    Type: CommaDelimitedList
+    Description: Comma separate list of IPs of permitted senders commands message, leave empty to disable whitelist.
+    Default: "149.154.160.0/20,91.108.4.0/22"
+  TelegramApiEndpoint:
+    Type: String
+    Description: "Telegram API endpoint"
+    Default: "https://api.telegram.org"
+  UsernameWhitelist:
+    Type: CommaDelimitedList
+    Description: "Telegram allowed usernames, separated by comma"
+  ModelId:
+    Type: String
+    Description: "Model identifier"
+    Default: "ai21.j2-mid-v1"
+  BotInstructions:
+    Type: String
+    Description: "Model instruction about how to respond to incoming messages"
+    Default: "You are a chatbot, you answer questions"
+
+Globals:
+  Function:
+    Tracing: Active
+    Runtime: nodejs18.x
+    CodeUri: src/
+
+Resources:
+      
+  ##
+  # EventBus
+  ##
+
+  MessagesEventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: !Ref AWS::StackName
+
+  ##
+  # IAM role
+  ##
+
+  EventsApiDestinationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - events.amazonaws.com
+      Path: '/service-role/'
+      Policies:
+        - PolicyName: eventbridge-api-destinations
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - events:InvokeApiDestination
+                Resource: 
+                  - !GetAtt BotApiDestination.Arn
+
+  WebhookEventBridgeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'sts:AssumeRole'
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+      Path: '/service-role/'
+      Policies:
+        - PolicyName: api-gateway-eventbridge
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'events:PutEvents'
+                Resource:
+                  - !GetAtt MessagesEventBus.Arn
+
+  ##
+  # EventBus API Connection for Telegram
+  ##
+
+  BotApiConnection:
+    Type: AWS::Events::Connection
+    Properties:
+      AuthorizationType: API_KEY
+      AuthParameters:
+        ApiKeyAuthParameters:
+          ApiKeyName: x-api-key
+          ApiKeyValue: NoValue
+
+  BotApiDestination:
+    Type: AWS::Events::ApiDestination
+    Properties:
+      Name: !Sub "${AWS::StackName}"
+      ConnectionArn: !GetAtt BotApiConnection.Arn
+      HttpMethod: POST
+      InvocationEndpoint: !Sub "${TelegramApiEndpoint}/bot${TelegramBotToken}/*"
+      InvocationRateLimitPerSecond: 10
+
+  ##
+  # Telegram API mapping
+  ##
+
+  SendMessageRule:
+    Type: AWS::Events::Rule
+    Properties:
+      State: ENABLED
+      EventBusName: !Ref MessagesEventBus
+      EventPattern:
+        detail-type: ['Send Message']
+      Targets:
+        - Id: telegram-destination
+          Arn: !GetAtt BotApiDestination.Arn
+          RoleArn: !GetAtt EventsApiDestinationRole.Arn
+          HttpParameters:
+            PathParameterValues:
+              - 'sendMessage'
+          InputTransformer:
+            InputPathsMap:
+              "chat_id": "$.detail.chat_id"
+              "text": "$.detail.text"
+            InputTemplate: |
+              {
+                "chat_id": "<chat_id>",
+                "text": "<text>",
+                "parse_mode": "HTML"
+              }
+
+  SendChatActionRule:
+    Type: AWS::Events::Rule
+    Properties:
+      State: ENABLED
+      EventBusName: !Ref MessagesEventBus
+      EventPattern:
+        detail-type: ['Send Chat Action']
+      Targets:
+        - Id: telegram-destination
+          Arn: !GetAtt BotApiDestination.Arn
+          RoleArn: !GetAtt EventsApiDestinationRole.Arn
+          HttpParameters:
+            PathParameterValues:
+              - 'sendChatAction'
+          InputTransformer:
+            InputPathsMap:
+              "chat_id": "$.detail.chat_id"
+              "action": "$.detail.action"
+            InputTemplate: |
+              {
+                "chat_id": "<chat_id>",
+                "action": "<action>"
+              }
+
+  ##
+  # Rest API endpoint
+  ##
+
+  WebhookApiRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "apigateway.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: ApiDirectWriteEventBridge
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              Action:
+                - events:PutEvents
+              Effect: Allow
+              Resource:
+                - !GetAtt MessagesEventBus.Arn
+
+  WebhookApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Ref AWS::StackName
+      StageName: webhook
+      Auth:
+        ResourcePolicy:
+          IpRangeWhitelist: !Ref TelegramIPsWhitelist
+      GatewayResponses:
+        DEFAULT_4xx:
+          StatusCode: 403
+          ResponseTemplates: 
+            "text/plain": "Forbidden"
+        DEFAULT_5xx:
+          StatusCode: 500
+          ResponseTemplates:
+            "text/plain": "Internal Server Error"
+      DefinitionBody:
+        swagger: 2.0
+        info:
+          title: "Telegram Bot Webhook"
+        schemes:
+          - "https"
+        paths:
+          /:
+            post:
+              consumes:
+                - "application/json"
+              produces:
+                - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+              x-amazon-apigateway-integration:
+                type: "aws"
+                httpMethod: "POST"
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:events:action/PutEvents"
+                requestTemplates:
+                  application/json: !Sub | 
+                    #set($context.requestOverride.header.X-Amz-Target = "AWSEvents.PutEvents")
+                    #set($context.requestOverride.header.Content-Type = "application/x-amz-json-1.1")
+                    {
+                      "Entries": [{
+                        "EventBusName": "${MessagesEventBus}",
+                        "Detail": "$util.escapeJavaScript($input.body).replaceAll("\\'","'")",
+                        "DetailType": "Webhook Event Received",
+                        "Source": "${AWS::StackName}"
+                      }]
+                    }
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseTemplates:
+                      "application/json": "{}"
+                credentials: !GetAtt WebhookApiRole.Arn
+                passthroughBehavior: "when_no_templates"
+
+  ##
+  # Database
+  ##
+
+  ChatHistoryBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref AWS::StackName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: delete-old-chats
+            ExpirationInDays: 1
+            Status: Enabled
+
+  ##
+  # Integration
+  ##
+
+  BedrockIntegrationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Ref AWS::StackName
+      Handler: bedrock.handler
+      MemorySize: 512
+      Timeout: 20
+      Environment:
+        Variables:
+          INSTRUCTIONS: !Ref BotInstructions
+          HISTORY_BUCKET: !Ref ChatHistoryBucket
+          MODEL_ID: !Ref ModelId
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref ChatHistoryBucket
+        - Statement:
+          - Effect: "Allow"
+            Action: "bedrock:InvokeModel"
+            Resource: "*"
+
+  MessageReceivedStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Ref AWS::StackName
+      DefinitionUri: states/message.asl.yaml
+      DefinitionSubstitutions:
+        EventBusName: !Ref MessagesEventBus
+        EventSource: !Ref AWS::StackName
+        BedrockIntegrationFunctionArn: !GetAtt BedrockIntegrationFunction.Arn
+      Policies:
+        - EventBridgePutEventsPolicy:
+            EventBusName: !Ref MessagesEventBus
+        - LambdaInvokePolicy:
+            FunctionName: !Ref BedrockIntegrationFunction
+      Events:
+        ReceivedEvent:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref MessagesEventBus
+            Pattern:
+              source:
+                - !Ref AWS::StackName
+              detail-type:
+                - 'Webhook Event Received'
+              detail:
+                message:
+                  from:
+                    username: !Ref UsernameWhitelist
+
+Outputs:
+  WebhookEndpoint:
+    Description: The Telegram bot Webhook URL
+    Value: !Sub "https://${WebhookApi}.execute-api.${AWS::Region}.amazonaws.com/webhook/"
+  MessagesEventBusName:
+    Description: Name of EventBridge bus used for bi-directional communication
+    Value: !Ref MessagesEventBus

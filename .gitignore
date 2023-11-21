@@ -1,0 +1,6 @@
+samconfig.toml
+.vscode
+.aws-sam
+env.json
+node_modules
+!layer/nodejs/node_modules

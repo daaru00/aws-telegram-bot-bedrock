@@ -1,0 +1,8 @@
+{
+		"name": "sam",
+		"version": "1.0.0",
+		"private": true,
+		"dependencies": {
+				"@aws-sdk/client-bedrock-runtime": "^3.425.0"
+		}
+}
