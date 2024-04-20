@@ -22,8 +22,8 @@ Parameters:
   ModelId:
     Type: String
     Description: "Model identifier"
-    Default: "ai21.j2-mid-v1"
-  BotInstructions:
+    Default: "anthropic.claude-instant-v1"
+  SystemPrompt:
     Type: String
     Description: "Model instruction about how to respond to incoming messages"
     Default: "You are a chatbot, you answer questions"
@@ -40,7 +40,7 @@ Resources:
   # EventBus
   ##
 
-  MessagesEventBus:
+  EventBus:
     Type: AWS::Events::EventBus
     Properties:
       Name: !Ref AWS::StackName
@@ -95,7 +95,7 @@ Resources:
                 Action:
                   - 'events:PutEvents'
                 Resource:
-                  - !GetAtt MessagesEventBus.Arn
+                  - !GetAtt EventBus.Arn
 
   ##
   # EventBus API Connection for Telegram
@@ -123,11 +123,33 @@ Resources:
   # Telegram API mapping
   ##
 
+  SetWebhookRule:
+    Type: AWS::Events::Rule
+    Properties:
+      State: ENABLED
+      EventBusName: !Ref EventBus
+      EventPattern:
+        detail-type: ['Set Webhook']
+      Targets:
+        - Id: telegram-destination
+          Arn: !GetAtt BotApiDestination.Arn
+          RoleArn: !GetAtt EventsApiDestinationRole.Arn
+          HttpParameters:
+            PathParameterValues:
+              - 'setWebhook'
+          InputTransformer:
+            InputPathsMap:
+              "url": "$.detail.url"
+            InputTemplate: |
+              {
+                "url": "<url>"
+              }
+
   SendMessageRule:
     Type: AWS::Events::Rule
     Properties:
       State: ENABLED
-      EventBusName: !Ref MessagesEventBus
+      EventBusName: !Ref EventBus
       EventPattern:
         detail-type: ['Send Message']
       Targets:
@@ -152,7 +174,7 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       State: ENABLED
-      EventBusName: !Ref MessagesEventBus
+      EventBusName: !Ref EventBus
       EventPattern:
         detail-type: ['Send Chat Action']
       Targets:
@@ -196,7 +218,7 @@ Resources:
                 - events:PutEvents
               Effect: Allow
               Resource:
-                - !GetAtt MessagesEventBus.Arn
+                - !GetAtt EventBus.Arn
 
   WebhookApi:
     Type: AWS::Serverless::Api
@@ -241,7 +263,7 @@ Resources:
                     #set($context.requestOverride.header.Content-Type = "application/x-amz-json-1.1")
                     {
                       "Entries": [{
-                        "EventBusName": "${MessagesEventBus}",
+                        "EventBusName": "${EventBus}",
                         "Detail": "$util.escapeJavaScript($input.body).replaceAll("\\'","'")",
                         "DetailType": "Webhook Event Received",
                         "Source": "${AWS::StackName}"
@@ -287,7 +309,7 @@ Resources:
       Timeout: 20
       Environment:
         Variables:
-          INSTRUCTIONS: !Ref BotInstructions
+          SYSTEM_PROMPT: !Ref SystemPrompt
           HISTORY_BUCKET: !Ref ChatHistoryBucket
           MODEL_ID: !Ref ModelId
       Policies:
@@ -301,22 +323,22 @@ Resources:
   MessageReceivedStateMachine:
     Type: AWS::Serverless::StateMachine
     Properties:
-      Name: !Ref AWS::StackName
+      Name: !Sub "${AWS::StackName}-message"
       DefinitionUri: states/message.asl.yaml
       DefinitionSubstitutions:
-        EventBusName: !Ref MessagesEventBus
+        EventBusName: !Ref EventBus
         EventSource: !Ref AWS::StackName
         BedrockIntegrationFunctionArn: !GetAtt BedrockIntegrationFunction.Arn
       Policies:
         - EventBridgePutEventsPolicy:
-            EventBusName: !Ref MessagesEventBus
+            EventBusName: !Ref EventBus
         - LambdaInvokePolicy:
             FunctionName: !Ref BedrockIntegrationFunction
       Events:
         ReceivedEvent:
           Type: EventBridgeRule
           Properties:
-            EventBusName: !Ref MessagesEventBus
+            EventBusName: !Ref EventBus
             Pattern:
               source:
                 - !Ref AWS::StackName
@@ -327,10 +349,40 @@ Resources:
                   from:
                     username: !Ref UsernameWhitelist
 
+  ##
+  # StepFunctions for connector management
+  ##
+
+  InstallStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub "${AWS::StackName}-install"
+      DefinitionUri: states/install.asl.yaml
+      DefinitionSubstitutions:
+        EventBusName: !Ref EventBus
+        EventSource: !Ref AWS::StackName
+        WebhookEndpoint: !Sub "https://${WebhookApi}.execute-api.${AWS::Region}.amazonaws.com/webhook/"
+      Policies:
+        - EventBridgePutEventsPolicy:
+            EventBusName: !Ref EventBus
+      Events:
+        StackCreated:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: default
+            Pattern:
+              source:
+                - aws.cloudformation
+              detail-type:
+                - CloudFormation Stack Status Change
+              detail:
+                stack-id:
+                  - !Ref AWS::StackId
+                status-details:
+                  status:
+                    - CREATE_COMPLETE
+
 Outputs:
-  WebhookEndpoint:
-    Description: The Telegram bot Webhook URL
-    Value: !Sub "https://${WebhookApi}.execute-api.${AWS::Region}.amazonaws.com/webhook/"
-  MessagesEventBusName:
+  EventBusName:
     Description: Name of EventBridge bus used for bi-directional communication
-    Value: !Ref MessagesEventBus
+    Value: !Ref EventBus

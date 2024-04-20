@@ -1,0 +1,14 @@
+StartAt: RegisterWebhook
+States:
+  RegisterWebhook:
+    Type: Task
+    Resource: 'arn:aws:states:::events:putEvents'
+    Parameters:
+      Entries:
+        - EventBusName: ${EventBusName}
+          Source: ${EventSource}
+          DetailType: Set Webhook
+          Detail:
+            url: ${WebhookEndpoint}
+    ResultPath: null
+    End: true
