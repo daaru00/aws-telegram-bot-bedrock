@@ -13,7 +13,7 @@ const MAX_TOKENS = parseInt(process.env.MAX_TOKENS || '100')
  */
 export async function handler ({ text, lang }) {
 	const langContext = `Answer using the language code ${lang}`
-	const responseContext = 'Summarize the text sent by the user'
+	const responseContext = 'Summarize the text sent by the user in the short way possible. Respond only with the summarized text.'
 
 	const prompt = {
     "prompt": `System:${[SYSTEM_PROMPT, langContext, responseContext].join('. ')}\n\nHuman:${text}\n\nAssistant:`,
@@ -28,8 +28,8 @@ export async function handler ({ text, lang }) {
 	}))
 
 	body = JSON.parse(Buffer.from(body).toString())
-	console.log(`Metadata: ${JSON.stringify($metadata)}`)
-	console.log(`Output ${contentType}: ${JSON.stringify(body)}`)
+	console.log('metadata', JSON.stringify($metadata))
+	console.log('output', contentType, JSON.stringify(body))
 
 	return body.completion.trim()
 }

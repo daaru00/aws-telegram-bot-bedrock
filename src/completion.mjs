@@ -28,8 +28,8 @@ export async function handler ({ text, lang }) {
 	}))
 
 	body = JSON.parse(Buffer.from(body).toString())
-	console.log(`Metadata: ${JSON.stringify($metadata)}`)
-	console.log(`Output ${contentType}: ${JSON.stringify(body)}`)
+	console.log('metadata', JSON.stringify($metadata))
+	console.log('output', contentType, JSON.stringify(body))
 
 	return body.completion.trim()
 }

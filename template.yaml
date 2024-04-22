@@ -19,7 +19,11 @@ Parameters:
   UsernameWhitelist:
     Type: CommaDelimitedList
     Description: "Telegram allowed usernames, separated by comma"
-  ModelId:
+  MessageModelId:
+    Type: String
+    Description: "Model identifier"
+    Default: "anthropic.claude-3-sonnet-20240229-v1:0"
+  CompletionModelId:
     Type: String
     Description: "Model identifier"
     Default: "anthropic.claude-instant-v1"
@@ -314,7 +318,7 @@ Resources:
         Variables:
           SYSTEM_PROMPT: !Ref SystemPrompt
           HISTORY_BUCKET: !Ref ChatHistoryBucket
-          MODEL_ID: !Ref ModelId
+          MODEL_ID: !Ref MessageModelId
           MAX_TOKENS: !Ref MaxTokens
           MAX_HISTORY_LENGTH: !Ref MaxHistoryLength
           TELEGRAM_API_ENDPOINT: !Ref TelegramApiEndpoint
@@ -336,7 +340,7 @@ Resources:
       Environment:
         Variables:
           SYSTEM_PROMPT: !Ref SystemPrompt
-          MODEL_ID: !Ref ModelId
+          MODEL_ID: !Ref CompletionModelId
           MAX_TOKENS: !Ref MaxTokens
       Policies:
         - Statement:
@@ -353,7 +357,7 @@ Resources:
       Environment:
         Variables:
           SYSTEM_PROMPT: !Ref SystemPrompt
-          MODEL_ID: !Ref ModelId
+          MODEL_ID: !Ref CompletionModelId
           MAX_TOKENS: !Ref MaxTokens
       Policies:
         - Statement:
