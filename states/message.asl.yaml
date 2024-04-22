@@ -22,6 +22,19 @@ States:
       user.$: $.detail.message.from.first_name
       lang.$: $.detail.message.from.language_code
       text.$: $.detail.message.text
+    Catch:
+      - ErrorEquals:
+          - "States.ALL"
+        Next: GetErrorResponse
+    ResultPath: $.response
+    Next: SendResponse
+
+  GetErrorResponse:
+    Type: Task
+    Resource: '${BedrockIntegrationFunctionArn}'
+    Parameters:
+      lang.$: $.detail.message.from.language_code
+      text: 'Generates an concisely error message regarding the impossibility of satisfying the request'
     ResultPath: $.response
     Next: SendResponse
   

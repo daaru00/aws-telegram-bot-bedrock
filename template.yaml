@@ -27,6 +27,10 @@ Parameters:
     Type: String
     Description: "Model instruction about how to respond to incoming messages"
     Default: "You are a chatbot, you answer questions"
+  MaxTokens:
+    Type: Number
+    Description: "Maximum number of tokens to generate"
+    Default: 100
 
 Globals:
   Function:
@@ -300,21 +304,39 @@ Resources:
   # Integration
   ##
 
-  BedrockIntegrationFunction:
+  BedrockIntegrationMessageFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Ref AWS::StackName
-      Handler: bedrock.handler
+      FunctionName: !Sub "${AWS::StackName}-message"
+      Handler: message.handler
       MemorySize: 512
-      Timeout: 20
+      Timeout: 15
       Environment:
         Variables:
           SYSTEM_PROMPT: !Ref SystemPrompt
           HISTORY_BUCKET: !Ref ChatHistoryBucket
           MODEL_ID: !Ref ModelId
+          MAX_TOKENS: !Ref MaxTokens
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref ChatHistoryBucket
+        - Statement:
+          - Effect: "Allow"
+            Action: "bedrock:InvokeModel"
+            Resource: "*"
+
+  BedrockIntegrationCompletionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-completion"
+      Handler: completion.handler
+      Timeout: 5
+      Environment:
+        Variables:
+          SYSTEM_PROMPT: !Ref SystemPrompt
+          MODEL_ID: !Ref ModelId
+          MAX_TOKENS: !Ref MaxTokens
+      Policies:
         - Statement:
           - Effect: "Allow"
             Action: "bedrock:InvokeModel"
@@ -328,12 +350,12 @@ Resources:
       DefinitionSubstitutions:
         EventBusName: !Ref EventBus
         EventSource: !Ref AWS::StackName
-        BedrockIntegrationFunctionArn: !GetAtt BedrockIntegrationFunction.Arn
+        BedrockIntegrationFunctionArn: !GetAtt BedrockIntegrationMessageFunction.Arn
       Policies:
         - EventBridgePutEventsPolicy:
             EventBusName: !Ref EventBus
         - LambdaInvokePolicy:
-            FunctionName: !Ref BedrockIntegrationFunction
+            FunctionName: !Ref BedrockIntegrationMessageFunction
       Events:
         ReceivedEvent:
           Type: EventBridgeRule
@@ -381,8 +403,3 @@ Resources:
                 status-details:
                   status:
                     - CREATE_COMPLETE
-
-Outputs:
-  EventBusName:
-    Description: Name of EventBridge bus used for bi-directional communication
-    Value: !Ref EventBus

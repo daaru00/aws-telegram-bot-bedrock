@@ -3,7 +3,6 @@ import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3
 const bedrock = new BedrockRuntimeClient()
 const s3 = new S3Client()
 
-const LINE_END = '\n'
 const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT
 const HISTORY_BUCKET = process.env.HISTORY_BUCKET
 const MODEL_ID = process.env.MODEL_ID
