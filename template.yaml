@@ -26,11 +26,15 @@ Parameters:
   SystemPrompt:
     Type: String
     Description: "Model instruction about how to respond to incoming messages"
-    Default: "You are a chatbot, you answer questions"
+    Default: "Your name is Bedrock, you are a chatbot"
   MaxTokens:
     Type: Number
     Description: "Maximum number of tokens to generate"
     Default: 100
+  MaxHistoryLength:
+    Type: Number
+    Description: "Maximum number of message to store in history"
+    Default: 10
 
 Globals:
   Function:
@@ -288,17 +292,12 @@ Resources:
   ChatHistoryBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Ref AWS::StackName
+      BucketName: !Sub "${AWS::StackName}-chats" 
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         IgnorePublicAcls: true
         BlockPublicPolicy: true
         RestrictPublicBuckets: true
-      LifecycleConfiguration:
-        Rules:
-          - Id: delete-old-chats
-            ExpirationInDays: 1
-            Status: Enabled
 
   ##
   # Integration
@@ -317,6 +316,9 @@ Resources:
           HISTORY_BUCKET: !Ref ChatHistoryBucket
           MODEL_ID: !Ref ModelId
           MAX_TOKENS: !Ref MaxTokens
+          MAX_HISTORY_LENGTH: !Ref MaxHistoryLength
+          TELEGRAM_API_ENDPOINT: !Ref TelegramApiEndpoint
+          TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref ChatHistoryBucket
@@ -342,6 +344,23 @@ Resources:
             Action: "bedrock:InvokeModel"
             Resource: "*"
 
+  BedrockIntegrationSummarizationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-summarization"
+      Handler: summarization.handler
+      Timeout: 30
+      Environment:
+        Variables:
+          SYSTEM_PROMPT: !Ref SystemPrompt
+          MODEL_ID: !Ref ModelId
+          MAX_TOKENS: !Ref MaxTokens
+      Policies:
+        - Statement:
+          - Effect: "Allow"
+            Action: "bedrock:InvokeModel"
+            Resource: "*"
+
   MessageReceivedStateMachine:
     Type: AWS::Serverless::StateMachine
     Properties:
@@ -350,12 +369,18 @@ Resources:
       DefinitionSubstitutions:
         EventBusName: !Ref EventBus
         EventSource: !Ref AWS::StackName
-        BedrockIntegrationFunctionArn: !GetAtt BedrockIntegrationMessageFunction.Arn
+        MessageFunctionArn: !GetAtt BedrockIntegrationMessageFunction.Arn
+        CompletionFunctionArn: !GetAtt BedrockIntegrationCompletionFunction.Arn
+        SummarizationFunctionArn: !GetAtt BedrockIntegrationSummarizationFunction.Arn
       Policies:
         - EventBridgePutEventsPolicy:
             EventBusName: !Ref EventBus
         - LambdaInvokePolicy:
             FunctionName: !Ref BedrockIntegrationMessageFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref BedrockIntegrationCompletionFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref BedrockIntegrationSummarizationFunction
       Events:
         ReceivedEvent:
           Type: EventBridgeRule

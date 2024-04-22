@@ -12,26 +12,52 @@ States:
             chat_id.$: $.detail.message.chat.id
             action: typing
     ResultPath: null
-    Next: GetResponse
+    Next: CheckForSummarization
 
-  GetResponse:
+  CheckForSummarization:
+    Type: Choice
+    Choices:
+      - Variable: $.detail.message.forward_origin
+        IsPresent: false
+        Next: GetResponse
+      - Variable: $.detail.message.text
+        IsPresent: false
+        Next: GetResponse
+    Default: GetSummary
+
+  GetSummary:
     Type: Task
-    Resource: '${BedrockIntegrationFunctionArn}'
+    Resource: '${SummarizationFunctionArn}'
     Parameters:
-      chat_id.$: $.detail.message.chat.id
-      user.$: $.detail.message.from.first_name
       lang.$: $.detail.message.from.language_code
       text.$: $.detail.message.text
     Catch:
       - ErrorEquals:
           - "States.ALL"
+        ResultPath: $.error
+        Next: GetErrorResponse
+    ResultPath: $.response
+    Next: SendResponse
+
+  GetResponse:
+    Type: Task
+    Resource: '${MessageFunctionArn}'
+    Parameters:
+      chat_id.$: $.detail.message.chat.id
+      user.$: $.detail.message.from.first_name
+      lang.$: $.detail.message.from.language_code
+      message.$: $.detail.message
+    Catch:
+      - ErrorEquals:
+          - "States.ALL"
+        ResultPath: $.error
         Next: GetErrorResponse
     ResultPath: $.response
     Next: SendResponse
 
   GetErrorResponse:
     Type: Task
-    Resource: '${BedrockIntegrationFunctionArn}'
+    Resource: '${CompletionFunctionArn}'
     Parameters:
       lang.$: $.detail.message.from.language_code
       text: 'Generates an concisely error message regarding the impossibility of satisfying the request'

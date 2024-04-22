@@ -13,7 +13,7 @@ const MAX_TOKENS = parseInt(process.env.MAX_TOKENS || '100')
  */
 export async function handler ({ text, lang }) {
 	const langContext = `Answer using the language code ${lang}`
-	const responseContext = 'Reply only with the requested text'
+	const responseContext = 'Summarize the text sent by the user'
 
 	const prompt = {
     "prompt": `System:${[SYSTEM_PROMPT, langContext, responseContext].join('. ')}\n\nHuman:${text}\n\nAssistant:`,
