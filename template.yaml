@@ -318,9 +318,9 @@ Resources:
         Variables:
           SYSTEM_PROMPT: !Ref SystemPrompt
           HISTORY_BUCKET: !Ref ChatHistoryBucket
+          MAX_HISTORY_LENGTH: !Ref MaxHistoryLength
           MODEL_ID: !Ref MessageModelId
           MAX_TOKENS: !Ref MaxTokens
-          MAX_HISTORY_LENGTH: !Ref MaxHistoryLength
           TELEGRAM_API_ENDPOINT: !Ref TelegramApiEndpoint
           TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
       Policies:
@@ -359,7 +359,11 @@ Resources:
           SYSTEM_PROMPT: !Ref SystemPrompt
           MODEL_ID: !Ref CompletionModelId
           MAX_TOKENS: !Ref MaxTokens
+          HISTORY_BUCKET: !Ref ChatHistoryBucket
+          MAX_HISTORY_LENGTH: !Ref MaxHistoryLength
       Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref ChatHistoryBucket
         - Statement:
           - Effect: "Allow"
             Action: "bedrock:InvokeModel"

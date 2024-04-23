@@ -29,6 +29,7 @@ States:
     Type: Task
     Resource: '${SummarizationFunctionArn}'
     Parameters:
+      chat_id.$: $.detail.message.chat.id
       lang.$: $.detail.message.from.language_code
       text.$: $.detail.message.text
     Catch:

@@ -16,8 +16,8 @@ export async function handler ({ text, lang }) {
 	const responseContext = 'Reply only with the requested text'
 
 	const prompt = {
-    "prompt": `System:${[SYSTEM_PROMPT, langContext, responseContext].join('. ')}\n\nHuman:${text}\n\nAssistant:`,
-    "max_tokens_to_sample": MAX_TOKENS
+		'prompt': `System:${[SYSTEM_PROMPT, langContext, responseContext].join('. ')}\n\nHuman:${text}\n\nAssistant:`,
+		'max_tokens_to_sample': MAX_TOKENS
 	}
 
 	let { body, contentType, $metadata } = await bedrock.send(new InvokeModelCommand({
