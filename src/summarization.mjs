@@ -2,6 +2,7 @@ import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedroc
 import { loadHistory, saveHistory } from './lib/history.mjs'
 const bedrock = new BedrockRuntimeClient()
 
+const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT
 const MODEL_ID = process.env.MODEL_ID
 const MAX_TOKENS = parseInt(process.env.MAX_TOKENS || '100')
 
@@ -12,12 +13,12 @@ const MAX_TOKENS = parseInt(process.env.MAX_TOKENS || '100')
  * @param {string} event.user
  */
 export async function handler ({ text, lang, chat_id }) {
-	const purposeContext = 'The user has forwarded you a message they received and your task is to summarize it as concisely as possible'
-	const langContext = `Answer using the language code ${lang}`
-	const responseContext = 'Reply only with summarized text without prefixes or suffixes that make the text seem unnatural, for example do not append the language code at the end of the message'
+	const purposeContext = 'Summarize the text of the message forwarded to you as concisely as possible'
+	const langContext = `When answering use the language code ${lang}`
+	const responseContext = 'Reply only with the text that needs to be sent to the user without prefixes or suffixes that make the text seem unnatural, for example do not append the language code at the end of the message'
 
 	const prompt = {
-		'prompt': `System:${[purposeContext, langContext, responseContext].join('. ')}\n\nHuman:${text}\n\nAssistant:`,
+		'prompt': `System:${[SYSTEM_PROMPT, purposeContext, langContext, responseContext].join('. ')}\n\nHuman:${text}\n\nAssistant:`,
 		'max_tokens_to_sample': MAX_TOKENS
 	}
 

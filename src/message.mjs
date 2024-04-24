@@ -27,7 +27,7 @@ export async function handler ({ message: { text, photo }, chat_id, user, lang }
 	} else {
 		messages = await loadHistory(chat_id)
 		if (photo) {
-			messages.push({
+			const message = {
 				'role': 'user',
 				'content': [{
 					'type': 'image',
@@ -36,11 +36,15 @@ export async function handler ({ message: { text, photo }, chat_id, user, lang }
 						'media_type': 'image/jpeg',
 						'data': await downloadImage(photo.shift())
 					}
-				},{
-					'type': 'text',
-					'text': text || 'What\'s in these images?'
 				}]
-			})
+			}
+			if (text) {
+				message.content.push({
+					'type': 'text',
+					'text': text
+				})
+			}
+			messages.push(message)
 		} else {
 			messages.push({
 				'role': 'user',
