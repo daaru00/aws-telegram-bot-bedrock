@@ -1,6 +1,14 @@
-StartAt: SendTyping
+StartAt: SetDefaultToolResponses
 States:
-  SendTyping:
+  SetDefaultToolResponses:
+    Type: Pass
+    Parameters:
+      toolUses: []
+      toolResults: []
+    ResultPath: $.response
+    Next: SendPreGenerateTyping
+
+  SendPreGenerateTyping:
     Type: Task
     Resource: 'arn:aws:states:::events:putEvents'
     Parameters:
@@ -22,20 +30,61 @@ States:
       user.$: $.detail.message.from.first_name
       lang.$: $.detail.message.from.language_code
       message.$: $.detail.message
+      toolUses.$: $.response.toolUses
+      toolResults.$: $.response.toolResults
     Catch:
       - ErrorEquals:
           - "States.ALL"
         ResultPath: $.error
         Next: GetErrorResponse
     ResultPath: $.response
-    Next: SendResponse
+    Next: CheckTools
+
+  CheckTools:
+    Type: Choice
+    Choices:
+      - Variable: $.response.stopReason
+        StringEquals: "tool_use"
+        Next: SendPreToolsTyping
+    Default: SendResponse
+
+  SendPreToolsTyping:
+    Type: Task
+    Resource: 'arn:aws:states:::events:putEvents'
+    Parameters:
+      Entries:
+        - EventBusName: ${EventBusName}
+          Source: ${EventSource}
+          DetailType: Send Chat Action
+          Detail:
+            chat_id.$: $.detail.message.chat.id
+            action: typing
+    ResultPath: null
+    Next: LoopOverTools
+
+  LoopOverTools:
+    Type: Map
+    ItemsPath: $.response.toolUses
+    ItemProcessor:
+      StartAt: InvokeToolFunction
+      States:
+        InvokeToolFunction:
+          Type: Task
+          Resource: "arn:aws:states:::lambda:invoke"
+          Parameters:
+            FunctionName.$: "States.Format('${ToolFunctionArnPrefix}{}', $.name)"
+            Payload.$: $
+          OutputPath: $.Payload
+          End: true
+    ResultPath: $.response.toolResults
+    Next: SendPreGenerateTyping
 
   GetErrorResponse:
     Type: Task
     Resource: '${CompletionFunctionArn}'
     Parameters:
       lang.$: $.detail.message.from.language_code
-      text: 'An error occured during response generation'
+      text.$: "States.Format('error: {}\ncause: {}\n', $.error.Error, $.error.Cause)"
     ResultPath: $.response
     Next: SendResponse
   
@@ -49,6 +98,6 @@ States:
           DetailType: Send Message
           Detail:
             chat_id.$: $.detail.message.chat.id
-            text.$: $.response
+            text.$: $.response.text
     ResultPath: null
     End: true

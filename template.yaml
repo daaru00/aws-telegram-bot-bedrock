@@ -290,97 +290,6 @@ Resources:
                 passthroughBehavior: "when_no_templates"
 
   ##
-  # Database
-  ##
-
-  ChatHistoryBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub "${AWS::StackName}-chats" 
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        IgnorePublicAcls: true
-        BlockPublicPolicy: true
-        RestrictPublicBuckets: true
-
-  ##
-  # Integration
-  ##
-
-  BedrockIntegrationMessageFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub "${AWS::StackName}-message"
-      Handler: message.handler
-      MemorySize: 512
-      Timeout: 15
-      Environment:
-        Variables:
-          SYSTEM_PROMPT: !Ref SystemPrompt
-          HISTORY_BUCKET: !Ref ChatHistoryBucket
-          MAX_HISTORY_LENGTH: !Ref MaxHistoryLength
-          MODEL_ID: !Ref MessageModelId
-          MAX_TOKENS: !Ref MaxTokens
-          TELEGRAM_API_ENDPOINT: !Ref TelegramApiEndpoint
-          TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
-      Policies:
-        - S3CrudPolicy:
-            BucketName: !Ref ChatHistoryBucket
-        - Statement:
-          - Effect: "Allow"
-            Action: "bedrock:InvokeModel"
-            Resource: "*"
-
-  BedrockIntegrationCompletionFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub "${AWS::StackName}-completion"
-      Handler: completion.handler
-      Timeout: 5
-      Environment:
-        Variables:
-          SYSTEM_PROMPT: !Ref SystemPrompt
-          MODEL_ID: !Ref CompletionModelId
-          MAX_TOKENS: !Ref MaxTokens
-      Policies:
-        - Statement:
-          - Effect: "Allow"
-            Action: "bedrock:InvokeModel"
-            Resource: "*"
-
-  MessageReceivedStateMachine:
-    Type: AWS::Serverless::StateMachine
-    Properties:
-      Name: !Sub "${AWS::StackName}-message"
-      DefinitionUri: states/message.asl.yaml
-      DefinitionSubstitutions:
-        EventBusName: !Ref EventBus
-        EventSource: !Ref AWS::StackName
-        MessageFunctionArn: !GetAtt BedrockIntegrationMessageFunction.Arn
-        CompletionFunctionArn: !GetAtt BedrockIntegrationCompletionFunction.Arn
-      Policies:
-        - EventBridgePutEventsPolicy:
-            EventBusName: !Ref EventBus
-        - LambdaInvokePolicy:
-            FunctionName: !Ref BedrockIntegrationMessageFunction
-        - LambdaInvokePolicy:
-            FunctionName: !Ref BedrockIntegrationCompletionFunction
-      Events:
-        ReceivedEvent:
-          Type: EventBridgeRule
-          Properties:
-            EventBusName: !Ref EventBus
-            Pattern:
-              source:
-                - !Ref AWS::StackName
-              detail-type:
-                - 'Webhook Event Received'
-              detail:
-                message:
-                  from:
-                    username: !Ref UsernameWhitelist
-
-  ##
   # StepFunctions for connector management
   ##
 
@@ -412,3 +321,137 @@ Resources:
                 status-details:
                   status:
                     - CREATE_COMPLETE
+
+  ##
+  # Database
+  ##
+
+  ChatHistoryBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-chats" 
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+
+  ##
+  # Integration
+  ##
+
+  BedrockIntegrationMessageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-message"
+      Handler: message.handler
+      MemorySize: 512
+      Timeout: 15
+      Environment:
+        Variables:
+          SYSTEM_PROMPT: !Ref SystemPrompt
+          TOOLS_SSM_PREFIX: !Sub "/${AWS::StackName}/tools/"
+          HISTORY_BUCKET: !Ref ChatHistoryBucket
+          MAX_HISTORY_LENGTH: !Ref MaxHistoryLength
+          MODEL_ID: !Ref MessageModelId
+          MAX_TOKENS: !Ref MaxTokens
+          TELEGRAM_API_ENDPOINT: !Ref TelegramApiEndpoint
+          TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref ChatHistoryBucket
+        - Statement:
+          - Effect: "Allow"
+            Action: "ssm:GetParametersByPath"
+            Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AWS::StackName}/tools/"
+          - Effect: "Allow"
+            Action: "bedrock:InvokeModel"
+            Resource: "*"
+
+  BedrockIntegrationCompletionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-completion"
+      Handler: completion.handler
+      Timeout: 5
+      Environment:
+        Variables:
+          SYSTEM_PROMPT: !Ref SystemPrompt
+          MODEL_ID: !Ref CompletionModelId
+          MAX_TOKENS: !Ref MaxTokens
+      Policies:
+        - Statement:
+          - Effect: "Allow"
+            Action: "bedrock:InvokeModel"
+            Resource: "*"
+
+  MessageReceivedStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub "${AWS::StackName}-message"
+      DefinitionUri: states/message.asl.yaml
+      DefinitionSubstitutions:
+        EventBusName: !Ref EventBus
+        EventSource: !Ref AWS::StackName
+        MessageFunctionArn: !GetAtt BedrockIntegrationMessageFunction.Arn
+        CompletionFunctionArn: !GetAtt BedrockIntegrationCompletionFunction.Arn
+        ToolFunctionArnPrefix: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-tools-"
+      Policies:
+        - EventBridgePutEventsPolicy:
+            EventBusName: !Ref EventBus
+        - LambdaInvokePolicy:
+            FunctionName: !Ref BedrockIntegrationMessageFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref BedrockIntegrationCompletionFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Sub "${AWS::StackName}-tools-"
+      Events:
+        ReceivedEvent:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref EventBus
+            Pattern:
+              source:
+                - !Ref AWS::StackName
+              detail-type:
+                - 'Webhook Event Received'
+              detail:
+                message:
+                  from:
+                    username: !Ref UsernameWhitelist
+
+  ##
+  # Tools
+  ##
+
+  BunnyToolFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-tools-bunny"
+      Handler: tools.bunny
+      Timeout: 5
+
+  BunnyToolParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/tools/bunny"
+      Type: String
+      Value: !Sub |
+        {
+          "name": "bunny",
+          "description": "Get the depth of a rabbit hole based on its color",
+          "inputSchema": {
+            "json": {
+              "type": "object",
+              "properties": {
+                "color": {
+                  "type": "string",
+                  "description": "The color of the rabbit"
+                }
+              },
+              "required": [
+                "color"
+              ]
+            }
+          }
+        }

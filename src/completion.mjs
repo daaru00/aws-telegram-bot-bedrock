@@ -20,5 +20,7 @@ export async function handler ({ text, lang }) {
 		}]
 	}])
 
-	return response
+	return {
+		text: response
+	}
 }
