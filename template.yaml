@@ -22,7 +22,7 @@ Parameters:
   MessageModelId:
     Type: String
     Description: "Model identifier"
-    Default: "anthropic.claude-3-sonnet-20240229-v1:0"
+    Default: "anthropic.claude-3-5-sonnet-20240620-v1:0"
   CompletionModelId:
     Type: String
     Description: "Model identifier"
@@ -348,27 +348,6 @@ Resources:
             Action: "bedrock:InvokeModel"
             Resource: "*"
 
-  BedrockIntegrationSummarizationFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub "${AWS::StackName}-summarization"
-      Handler: summarization.handler
-      Timeout: 30
-      Environment:
-        Variables:
-          SYSTEM_PROMPT: !Ref SystemPrompt
-          MODEL_ID: !Ref CompletionModelId
-          MAX_TOKENS: !Ref MaxTokens
-          HISTORY_BUCKET: !Ref ChatHistoryBucket
-          MAX_HISTORY_LENGTH: !Ref MaxHistoryLength
-      Policies:
-        - S3CrudPolicy:
-            BucketName: !Ref ChatHistoryBucket
-        - Statement:
-          - Effect: "Allow"
-            Action: "bedrock:InvokeModel"
-            Resource: "*"
-
   MessageReceivedStateMachine:
     Type: AWS::Serverless::StateMachine
     Properties:
@@ -379,7 +358,6 @@ Resources:
         EventSource: !Ref AWS::StackName
         MessageFunctionArn: !GetAtt BedrockIntegrationMessageFunction.Arn
         CompletionFunctionArn: !GetAtt BedrockIntegrationCompletionFunction.Arn
-        SummarizationFunctionArn: !GetAtt BedrockIntegrationSummarizationFunction.Arn
       Policies:
         - EventBridgePutEventsPolicy:
             EventBusName: !Ref EventBus
@@ -387,8 +365,6 @@ Resources:
             FunctionName: !Ref BedrockIntegrationMessageFunction
         - LambdaInvokePolicy:
             FunctionName: !Ref BedrockIntegrationCompletionFunction
-        - LambdaInvokePolicy:
-            FunctionName: !Ref BedrockIntegrationSummarizationFunction
       Events:
         ReceivedEvent:
           Type: EventBridgeRule

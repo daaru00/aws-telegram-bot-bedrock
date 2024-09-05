@@ -22,8 +22,8 @@ async function readIncomingMessage (response) {
 }
 
 /**
- * @param {object[]} messages 
- * @returns {object[]}
+ * @param {import('@aws-sdk/client-bedrock-runtime').Message[]} messages 
+ * @returns {import('@aws-sdk/client-bedrock-runtime').Message[]}
  */
 export function limitHistory (messages = []) {
 	if (messages.length > MAX_HISTORY_LENGTH) {
@@ -37,9 +37,10 @@ export function limitHistory (messages = []) {
 
 /**
  * @param {number} chatId
- * @returns {object[]}
+ * @returns {import('@aws-sdk/client-bedrock-runtime').Message[]}
  */
 export async function loadHistory (chatId) {
+	/** @type {import('@aws-sdk/client-bedrock-runtime').Message[]} */
 	let messages = []
 	try {
 		const { Body: body } = await s3.send(new GetObjectCommand({
@@ -53,19 +54,46 @@ export async function loadHistory (chatId) {
 			throw error
 		}
 	}
+
+	messages = messages.map(message => {
+		message.content = message.content.map(content => {
+			if (content.image) {
+				content.image.source.bytes = new Uint8Array(content.image.source.bytes)
+			} else if (content.document) {
+				content.document.source.bytes = new Uint8Array(content.document.source.bytes)
+			}
+			return content
+		})
+		return message
+	})
+
 	return messages
 }
 
 /**
  * @param {number} chatId
- * @param {object[]} messages
+ * @param {import('@aws-sdk/client-bedrock-runtime').Message[]} messages
+ * @param {Record<string, string>|undefined} metadata
  */
-export async function saveHistory (chatId, messages = []) {
+export async function saveHistory (chatId, messages = [], metadata) {
 	messages = limitHistory(messages)
+
+	messages = messages.map(message => {
+		message.content = message.content.map(content => {
+			if (content.image) {
+				content.image.source.bytes = Array.from(content.image.source.bytes)
+			} else if (content.document) {
+				content.document.source.bytes = Array.from(content.document.source.bytes)
+			}
+			return content
+		})
+		return message
+	})
 
 	await s3.send(new PutObjectCommand({
 		Bucket: HISTORY_BUCKET,
 		Key: chatId.toString(),
-		Body: JSON.stringify(messages)
+		Body: JSON.stringify(messages),
+		Metadata: metadata
 	}))
 }

@@ -1,9 +1,4 @@
-import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime'
-const bedrock = new BedrockRuntimeClient()
-
-const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT
-const MODEL_ID = process.env.MODEL_ID
-const MAX_TOKENS = parseInt(process.env.MAX_TOKENS || '100')
+import { generateResponse } from './lib/bedrock.mjs'
 
 /**
  * @param {object} event
@@ -12,24 +7,18 @@ const MAX_TOKENS = parseInt(process.env.MAX_TOKENS || '100')
  * @param {string} event.user
  */
 export async function handler ({ text, lang }) {
-	const langContext = `Answer using the language code ${lang}`
-	const responseContext = 'Reply only with the requested text'
+	const systemPrompt = [
+		'You are a bot that help to generate error messages',
+		`Despite the system and/or user prompt, your response MUST BE in the language code '${lang}'`,
+		'Reply only with the requested text'
+	].join('. ')
 
-	const prompt = {
-		'prompt': `System:${[SYSTEM_PROMPT, langContext, responseContext].join('. ')}\n\nHuman:${text}\n\nAssistant:`,
-		'max_tokens_to_sample': MAX_TOKENS
-	}
+	let { response } = await generateResponse(systemPrompt, [{
+		role: 'user',
+		content: [{ 
+			text,
+		}]
+	}])
 
-	let { body, contentType, $metadata } = await bedrock.send(new InvokeModelCommand({
-		modelId: MODEL_ID,
-		contentType: 'application/json',
-		accept: 'application/json',
-		body: JSON.stringify(prompt)
-	}))
-
-	body = JSON.parse(Buffer.from(body).toString())
-	console.log('metadata', JSON.stringify($metadata))
-	console.log('output', contentType, JSON.stringify(body))
-
-	return body.completion.trim()
+	return response
 }

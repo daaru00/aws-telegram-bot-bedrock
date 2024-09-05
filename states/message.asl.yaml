@@ -12,33 +12,7 @@ States:
             chat_id.$: $.detail.message.chat.id
             action: typing
     ResultPath: null
-    Next: CheckForSummarization
-
-  CheckForSummarization:
-    Type: Choice
-    Choices:
-      - Variable: $.detail.message.forward_origin
-        IsPresent: false
-        Next: GetResponse
-      - Variable: $.detail.message.text
-        IsPresent: false
-        Next: GetResponse
-    Default: GetSummary
-
-  GetSummary:
-    Type: Task
-    Resource: '${SummarizationFunctionArn}'
-    Parameters:
-      chat_id.$: $.detail.message.chat.id
-      lang.$: $.detail.message.from.language_code
-      text.$: $.detail.message.text
-    Catch:
-      - ErrorEquals:
-          - "States.ALL"
-        ResultPath: $.error
-        Next: GetErrorResponse
-    ResultPath: $.response
-    Next: SendResponse
+    Next: GetResponse
 
   GetResponse:
     Type: Task
@@ -61,7 +35,7 @@ States:
     Resource: '${CompletionFunctionArn}'
     Parameters:
       lang.$: $.detail.message.from.language_code
-      text: 'Generates an concisely error message regarding the impossibility of satisfying the request'
+      text: 'An error occured during response generation'
     ResultPath: $.response
     Next: SendResponse
   
