@@ -41,10 +41,10 @@ export async function listTools() {
 /**
  * @param {string} system
  * @param {import('@aws-sdk/client-bedrock-runtime').Message[]} messages
- * @param {number} maxToken
+ * @param {import('@aws-sdk/client-bedrock-runtime').Tool[]} tools
  * @returns {Promise<{ response: string, stopReason: string, usage: object, history: import('@aws-sdk/client-bedrock-runtime').Message[], tools: import('@aws-sdk/client-bedrock-runtime').ToolUseBlock[] }>}
  */
-export async function generateResponse(system, messages) {
+export async function generateResponse(system, messages, tools = []) {
 	let { output, stopReason, usage } = await bedrock.send(new ConverseCommand({
 		modelId: MODEL_ID,
 		inferenceConfig: {
@@ -55,9 +55,9 @@ export async function generateResponse(system, messages) {
 		system: [{
 			text: system
 		}],
-		toolConfig: {
-			tools: await listTools()
-		}
+		toolConfig: tools.length > 0 ? {
+			tools
+		} : undefined
 	}))
   
 	const response = output.message.content.reduce((acc, item) => acc + item.text, '').trim().replace(/\.$/, '')

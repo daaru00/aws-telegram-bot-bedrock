@@ -84,7 +84,7 @@ States:
     Resource: '${CompletionFunctionArn}'
     Parameters:
       lang.$: $.detail.message.from.language_code
-      text.$: "States.Format('error: {}\ncause: {}\n', $.error.Error, $.error.Cause)"
+      text.$: "States.Format('An error occured during response generation, here the cause:\n\n{}\n\n', $.error.Cause)"
     ResultPath: $.response
     Next: SendResponse
   

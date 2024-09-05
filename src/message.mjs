@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { loadHistory, saveHistory, limitHistory } from './lib/history.mjs'
 import { downloadFile } from './lib/telegram.mjs'
-import { generateResponse } from './lib/bedrock.mjs'
+import { generateResponse, listTools } from './lib/bedrock.mjs'
 
 const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT
 
@@ -141,10 +141,9 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 		})
 	}
 
-	console.log('messages', JSON.stringify(messages, null, 2))
+	const tools = await listTools()
+	const { response, toolUses, history, usage, stopReason } = await generateResponse(systemPrompt, messages, tools)
 
-	const { response, toolUses, history, usage, stopReason } = await generateResponse(systemPrompt, messages)
-	console.log('response', response)
 	console.log('tools', toolUses)
 	console.log('usage', JSON.stringify(usage))
 
