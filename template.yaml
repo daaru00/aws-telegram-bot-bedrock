@@ -23,10 +23,18 @@ Parameters:
     Type: String
     Description: "Model identifier"
     Default: "anthropic.claude-3-5-sonnet-20240620-v1:0"
+  MessageGenerationTimeout:
+    Type: Number
+    Description: "Message generation timeout in seconds"
+    Default: 30
   CompletionModelId:
     Type: String
     Description: "Model identifier"
     Default: "anthropic.claude-instant-v1"
+  CompletionGenerationTimeout:
+    Type: Number
+    Description: "Message completion timeout in seconds"
+    Default: 5
   SystemPrompt:
     Type: String
     Description: "Model instruction about how to respond to incoming messages"
@@ -346,7 +354,7 @@ Resources:
       FunctionName: !Sub "${AWS::StackName}-message"
       Handler: message.handler
       MemorySize: 512
-      Timeout: 15
+      Timeout: !Ref MessageGenerationTimeout
       Environment:
         Variables:
           SYSTEM_PROMPT: !Ref SystemPrompt
@@ -373,7 +381,7 @@ Resources:
     Properties:
       FunctionName: !Sub "${AWS::StackName}-completion"
       Handler: completion.handler
-      Timeout: 5
+      Timeout: !Ref CompletionGenerationTimeout
       Environment:
         Variables:
           SYSTEM_PROMPT: !Ref SystemPrompt
