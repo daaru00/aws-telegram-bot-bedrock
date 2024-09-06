@@ -147,7 +147,7 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 	console.log('tools', toolUses)
 	console.log('usage', JSON.stringify(usage))
 
-	if (toolUses.length === 0) {
+	if (toolUses.length === 0 || previousToolUses.length > 0) {
 		await saveHistory(chat_id, limitHistory(history), {
 			ChatId: chat_id.toString(),
 			MessageId: `${message.message_id}`,
