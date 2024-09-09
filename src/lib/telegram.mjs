@@ -7,6 +7,10 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
  * @returns {Uint8Array}
  */
 export async function downloadFile (fileObject) {
+	if (!fileObject || !fileObject.file_id) {
+		throw new Error('Invalid file object')
+	}
+
 	const fileRes = await fetch(`${TELEGRAM_API_ENDPOINT}/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${fileObject.file_id}`)
 	if (!fileRes.ok) {
 		throw new Error(fileRes.statusText)
@@ -24,4 +28,20 @@ export async function downloadFile (fileObject) {
 
 	const body = await fileContestRes.arrayBuffer()
 	return new Uint8Array(body)
+}
+
+/**
+ * @param {number} chatId 
+ */
+export async function sendTypingAction(chatId) {
+	await fetch(`${TELEGRAM_API_ENDPOINT}/bot${TELEGRAM_BOT_TOKEN}/sendChatAction`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			chat_id: chatId,
+			action: 'typing'
+		})
+	})
 }

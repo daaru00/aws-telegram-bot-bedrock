@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { loadHistory, saveHistory, limitHistory } from './lib/history.mjs'
-import { downloadFile } from './lib/telegram.mjs'
-import { generateResponse, listTools } from './lib/bedrock.mjs'
+import { downloadFile, sendTypingAction } from './lib/telegram.mjs'
+import { generateResponseStream, listTools } from './lib/bedrock.mjs'
 
 const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT
 
@@ -28,7 +28,7 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 		'You can use the following HTML tags to highligh the response text: <b>, <i>, <u>, <code>, <pre>, <a>; use formatting only when absolutely necessary to highlight information in long text',
 		`Despite the system and/or user prompt, your response MUST BE in the language code '${lang}'`,
 		'Use a tool instead of your internal knowledge to accomplish the task of the available tools',
-		'When using a tool without mentioning them in the response; trait the tool answer as an absolute truth'
+		'Do not mention the tools you used nd trait the tool answer as an absolute truth',
 	].join('. ')
 
 	let messages = []
@@ -57,19 +57,32 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 				}]
 			})
 		} else if (document) {
-			const ext = path.extname(document.file_name).replace('.', '')
+			let ext = path.extname(document.file_name).replace('.', '')
 
-			const isTypeImage = [
+			let isTypeImage = [
 				'gif', 'jpg', 'jpeg', 'png', 'webp'
 			].includes(ext)
 
-			if (!isTypeImage && ![
+			const isTypeVideo = [
+				'mp4'
+			].includes(ext)
+
+			if (!isTypeImage && !isTypeVideo && ![
 				'pdf', 'csv', 'doc', 'docx', 'xls', 'xlsx', 'html', 'txt', 'md'
 			].includes(ext)) {
 				throw new Error(`Unsupported document type: ${ext}`)
 			}
 
-			const bytes = await downloadFile(document)
+			let bytes
+			if (isTypeVideo) {
+				// download the thumbnail image instead
+				bytes = await downloadFile(document.thumb)
+				// force image processing instead of document
+				isTypeImage = true
+				ext = 'jpeg'
+			} else {
+				bytes = await downloadFile(document)
+			}
 
 			if (isTypeImage) {
 				messages.push({
@@ -83,7 +96,9 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 							}
 						}
 					}, {
-						text: `analyze the image content (the original file name is '${document.file_name}')`
+						text: isTypeVideo ?
+							`analyze the image content, this is a thumbnail of a video (the original video file name is '${document.file_name}')` :
+							`analyze the image content (the original file name is '${document.file_name}')`
 					}]
 				})
 			} else {
@@ -141,13 +156,18 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 		})
 	}
 
+	const timerTyping = setInterval(() => {
+		sendTypingAction(chat_id)
+	}, 1000)
+
 	const tools = await listTools()
-	const { response, toolUses, history, usage, stopReason } = await generateResponse(systemPrompt, messages, tools)
+	const { response, toolUses, usage, stopReason } = await generateResponseStream(systemPrompt, messages, tools)
 
 	console.log('tools', toolUses)
 	console.log('usage', JSON.stringify(usage))
 
 	if (toolUses.length === 0 || previousToolUses.length > 0) {
+		let history = messages.concat({ role: 'assistant', content: [{ type: 'text', text: response }] })
 		await saveHistory(chat_id, limitHistory(history), {
 			ChatId: chat_id.toString(),
 			MessageId: `${message.message_id}`,
@@ -155,6 +175,8 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 		})
 		console.log('history', history.length)
 	}
+
+	clearInterval(timerTyping)
 
 	return {
 		stopReason,

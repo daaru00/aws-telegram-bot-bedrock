@@ -51,7 +51,7 @@ Parameters:
 Globals:
   Function:
     Tracing: Active
-    Runtime: nodejs18.x
+    Runtime: nodejs20.x
     CodeUri: src/
 
 Resources:
@@ -373,7 +373,9 @@ Resources:
             Action: "ssm:GetParametersByPath"
             Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AWS::StackName}/tools/"
           - Effect: "Allow"
-            Action: "bedrock:InvokeModel"
+            Action: 
+              - "bedrock:InvokeModel"
+              - "bedrock:InvokeModelWithResponseStream"
             Resource: "*"
 
   BedrockIntegrationCompletionFunction:

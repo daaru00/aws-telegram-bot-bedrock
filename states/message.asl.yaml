@@ -76,6 +76,11 @@ States:
             Payload.$: $
           OutputPath: $.Payload
           End: true
+    Catch:
+      - ErrorEquals:
+          - "States.ALL"
+        ResultPath: $.error
+        Next: GetErrorResponse
     ResultPath: $.response.toolResults
     Next: SendPreGenerateTyping
 

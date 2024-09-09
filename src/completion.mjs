@@ -8,7 +8,8 @@ import { generateResponse } from './lib/bedrock.mjs'
  */
 export async function handler ({ text, lang }) {
 	const systemPrompt = [
-		'You are a bot that help to generate error messages',
+		'You are a bot that help to generate error messages for a non-technical user',
+		'Simplify the response without stack trace or code-related information',
 		`Despite the system and/or user prompt, your response MUST BE in the language code '${lang}'`,
 		'Reply only with the requested text'
 	].join('. ')

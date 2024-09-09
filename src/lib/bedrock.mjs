@@ -1,4 +1,4 @@
-import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime'
+import { BedrockRuntimeClient, ConverseCommand, ConverseStreamCommand } from '@aws-sdk/client-bedrock-runtime'
 import { SSMClient, GetParametersByPathCommand } from '@aws-sdk/client-ssm'
 const bedrock = new BedrockRuntimeClient()
 const ssm = new SSMClient()
@@ -62,13 +62,76 @@ export async function generateResponse(system, messages, tools = []) {
   
 	const response = output.message.content.reduce((acc, item) => acc + item.text, '').trim().replace(/\.$/, '')
 	const toolUses = output.message.content.filter(item => item.toolUse).map(item => item.toolUse)
-	const history = messages.concat({ role: 'assistant', content: [{ type: 'text', text: response }] })
 
 	return {
 		response,
 		toolUses,
 		stopReason,
-		usage,
-		history
+		usage
+	}
+}
+
+export async function generateResponseStream(system, messages, tools = [], onWriting) {
+	let { stream } = await bedrock.send(new ConverseStreamCommand({
+		modelId: MODEL_ID,
+		inferenceConfig: {
+			maxTokens: MAX_TOKENS,
+			temperature: TEMPERATURE
+		},
+		messages,
+		system: [{
+			text: system
+		}],
+		toolConfig: tools.length > 0 ? {
+			tools
+		} : undefined
+	}))
+
+	let stopReason
+	let usage
+
+	let response = ''
+	let toolUses = []
+
+	for await (const item of stream) {
+		if (item.contentBlockStart) {
+			if (item.contentBlockStart.start?.toolUse) {
+				toolUses.push({
+					toolUseId: item.contentBlockStart.start?.toolUse.toolUseId,
+					name: item.contentBlockStart.start?.toolUse.name,
+					input: ''
+				})
+			}
+		} else if (item.contentBlockDelta) {
+			if (item.contentBlockDelta.delta?.text) {
+				const text = item.contentBlockDelta.delta?.text
+				response += text
+				if (typeof onWriting === 'function') {
+					onWriting(text)
+				}
+			} else if (item.contentBlockDelta.delta?.toolUse) {
+				toolUses[toolUses.length-1].input += item.contentBlockDelta.delta?.toolUse.input
+			}
+		} else if (item.metadata) {
+			usage = item.metadata.usage
+		} else if (item.messageStop) {
+			stopReason = item.messageStop.stopReason
+		}
+	}
+
+	if (toolUses.length > 0) {
+		toolUses = toolUses.map(toolUse => {
+			if (typeof toolUse.input === 'string') {
+				toolUse.input = JSON.parse(toolUse.input)
+			}
+			return toolUse
+		})
+	}
+
+	return {
+		response,
+		toolUses,
+		stopReason,
+		usage
 	}
 }
