@@ -61,6 +61,13 @@ export async function loadHistory (chatId) {
 				content.image.source.bytes = new Uint8Array(content.image.source.bytes)
 			} else if (content.document) {
 				content.document.source.bytes = new Uint8Array(content.document.source.bytes)
+			} else if (content.toolResult) {
+				content.toolResult.content = content.toolResult.content.map(content => {
+					if (content.document) {
+						content.document.source.bytes = new Uint8Array(content.document.source.bytes)
+					}
+					return content
+				})
 			}
 			return content
 		})
@@ -84,6 +91,13 @@ export async function saveHistory (chatId, messages = [], metadata) {
 				content.image.source.bytes = Array.from(content.image.source.bytes)
 			} else if (content.document) {
 				content.document.source.bytes = Array.from(content.document.source.bytes)
+			} else if (content.toolResult) {
+				content.toolResult.content = content.toolResult.content.map(content => {
+					if (content.document) {
+						content.document.source.bytes = Array.from(content.document.source.bytes)
+					}
+					return content
+				})
 			}
 			return content
 		})

@@ -152,7 +152,15 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 		})
 		messages.push({
 			role: 'user',
-			content: toolResults.map(toolResult => ({ toolResult }))
+			content: toolResults.map(toolResult => {
+				toolResult.content = toolResult.content.map(content => {
+					if (content.document) {
+						content.document.source.bytes = new Uint8Array(content.document.source.bytes)
+					}
+					return content
+				})
+				return { toolResult }
+			})
 		})
 	}
 
@@ -163,7 +171,7 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 	const tools = await listTools()
 	const { response, toolUses, usage, stopReason } = await generateResponseStream(systemPrompt, messages, tools)
 
-	console.log('tools', toolUses)
+	console.log('toolUses', toolUses)
 	console.log('usage', JSON.stringify(usage))
 
 	if (toolUses.length === 0 || previousToolUses.length > 0) {

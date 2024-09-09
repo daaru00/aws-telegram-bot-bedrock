@@ -434,33 +434,34 @@ Resources:
   # Tools
   ##
 
-  BunnyToolFunction:
+  HttpToolFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "${AWS::StackName}-tools-bunny"
-      Handler: tools.bunny
-      Timeout: 5
+      FunctionName: !Sub "${AWS::StackName}-tools-http"
+      Handler: tools.http
+      Timeout: 30
 
-  BunnyToolParameter:
+  HttpToolParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub "/${AWS::StackName}/tools/bunny"
+      Name: !Sub "/${AWS::StackName}/tools/http"
       Type: String
       Value: !Sub |
         {
-          "name": "bunny",
-          "description": "Get the depth of a rabbit hole based on its color",
+          "name": "http",
+          "description": "Get the HTML content of a website",
           "inputSchema": {
             "json": {
               "type": "object",
               "properties": {
-                "color": {
+                "url": {
                   "type": "string",
-                  "description": "The color of the rabbit"
+                  "format": "uri",
+                  "description": "The website URL"
                 }
               },
               "required": [
-                "color"
+                "url"
               ]
             }
           }
