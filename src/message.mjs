@@ -25,7 +25,7 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 		SYSTEM_PROMPT,
 		`Current timestamp is ${new Date().toLocaleString()} UTC+0`,
 		`The user you're chatting with is named ${user}`,
-		'You can use the following HTML tags to highligh the response text: <b>, <i>, <u>, <code>, <pre>, <a>; use formatting only when absolutely necessary to highlight information in long text',
+		'You can use only the following HTML tags to highligh the response text: <b>, <i>, <u>, <code>, <pre>, <a>; otherwise the answer must be a plain text without formatting',
 		`Despite the system and/or user prompt, your response MUST BE in the language code '${lang}'`,
 		'Use a tool instead of your internal knowledge to accomplish the task of the available tools',
 		'Do not mention the tools you used nd trait the tool answer as an absolute truth',
