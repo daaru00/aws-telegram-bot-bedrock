@@ -32,6 +32,12 @@ States:
       message.$: $.detail.message
       toolUses.$: $.response.toolUses
       toolResults.$: $.response.toolResults
+    Retry:
+      - ErrorEquals:
+        - "ThrottlingException"
+        IntervalSeconds: 2
+        JitterStrategy: FULL
+        MaxAttempts: 5
     Catch:
       - ErrorEquals:
           - "States.ALL"
@@ -89,7 +95,13 @@ States:
     Resource: '${CompletionFunctionArn}'
     Parameters:
       lang.$: $.detail.message.from.language_code
-      text.$: "States.Format('An error occured during response generation, here the cause:\n\n{}\n\n', $.error.Cause)"
+      text.$: "States.Format('An error occurred during response generation, here the cause:\n\n{}\n\n', $.error.Cause)"
+    Retry:
+      - ErrorEquals:
+        - "ThrottlingException"
+        IntervalSeconds: 2
+        JitterStrategy: FULL
+        MaxAttempts: 10
     ResultPath: $.response
     Next: SendResponse
   

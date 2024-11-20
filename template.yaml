@@ -34,7 +34,7 @@ Parameters:
   CompletionGenerationTimeout:
     Type: Number
     Description: "Message completion timeout in seconds"
-    Default: 5
+    Default: 10
   SystemPrompt:
     Type: String
     Description: "Model instruction about how to respond to incoming messages"
