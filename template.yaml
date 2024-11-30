@@ -22,7 +22,7 @@ Parameters:
   MessageModelId:
     Type: String
     Description: "Model identifier"
-    Default: "anthropic.claude-3-5-sonnet-20240620-v1:0"
+    Default: "anthropic.claude-3-sonnet-20240229-v1:0"
   MessageGenerationTimeout:
     Type: Number
     Description: "Message generation timeout in seconds"
@@ -42,7 +42,7 @@ Parameters:
   MaxTokens:
     Type: Number
     Description: "Maximum number of tokens to generate"
-    Default: 100
+    Default: 500
   MaxHistoryLength:
     Type: Number
     Description: "Maximum number of message to store in history"
@@ -440,6 +440,7 @@ Resources:
       FunctionName: !Sub "${AWS::StackName}-tools-http"
       Handler: tools.http
       Timeout: 30
+      MemorySize: 512
 
   HttpToolParameter:
     Type: AWS::SSM::Parameter
@@ -449,7 +450,7 @@ Resources:
       Value: !Sub |
         {
           "name": "http",
-          "description": "Get the HTML content of a website",
+          "description": "Read the content of a valid and existing website",
           "inputSchema": {
             "json": {
               "type": "object",
