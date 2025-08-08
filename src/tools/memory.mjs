@@ -1,4 +1,4 @@
-import { ingest, retrieve } from '../lib/knowledge.mjs'
+import { ingest, retrieveAndGenerate } from '../lib/knowledge.mjs'
 
 /**
  * @param {import('@aws-sdk/client-bedrock-runtime').ToolUseBlock} toolUse
@@ -39,7 +39,7 @@ export async function save ({ toolUseId, input }) {
 export async function search ({ toolUseId, input }) {
 	let result = ''
 	try {
-		result = await retrieve(input.query, {
+		result = await retrieveAndGenerate(input.query, {
 			equals: {
 				key: 'chat_id',
 				value: input.chat_id

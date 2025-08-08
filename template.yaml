@@ -574,12 +574,19 @@ Resources:
         Variables:
           KNOWLEDGE_BASE_ID: !Ref KnowledgeBaseId
           DATA_SOURCE_ID: !Ref DataSourceId
+          KNOWLEDGE_BASE_MODEL_ARN: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/${CompletionModelId}"
       Policies:
         - Statement:
           - Effect: "Allow"
-            Action: "bedrock:Retrieve"
+            Action: 
+              - "bedrock:Retrieve"
+              - "bedrock:RetrieveAndGenerate"
             Resource: 
               - !Sub "arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/${KnowledgeBaseId}"
+          - Effect: "Allow"
+            Action: 
+              - "bedrock:InvokeModel"
+            Resource: "*"
 
   MemorySearchToolParameter:
     Condition: IsKnowledgeBaseEnabled

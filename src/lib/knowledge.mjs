@@ -1,10 +1,11 @@
 import { BedrockAgentClient, IngestKnowledgeBaseDocumentsCommand } from '@aws-sdk/client-bedrock-agent'
-import { BedrockAgentRuntimeClient, RetrieveCommand } from '@aws-sdk/client-bedrock-agent-runtime'
+import { BedrockAgentRuntimeClient, RetrieveCommand, RetrieveAndGenerateCommand } from '@aws-sdk/client-bedrock-agent-runtime'
 const bedrock = new BedrockAgentClient()
 const bedrockRuntime = new BedrockAgentRuntimeClient()
 
 const KNOWLEDGE_BASE_ID = process.env.KNOWLEDGE_BASE_ID
 const DATA_SOURCE_ID = process.env.DATA_SOURCE_ID
+const KNOWLEDGE_BASE_MODEL_ARN = process.env.KNOWLEDGE_BASE_MODEL_ARN
 
 /**
  * @param {string} text 
@@ -63,4 +64,39 @@ export async function retrieve(query, filter) {
 		}
 	}))
 	return response.retrievalResults.map(result => result.content.text).join(' ')
+}
+
+/**
+ * @param {string} query 
+ * @param {import('@aws-sdk/client-bedrock-agent-runtime').RetrievalFilter|undefined} filter 
+ * @returns {Promise<string>}
+ */
+export async function retrieveAndGenerate(query, filter) {
+	const response = await bedrockRuntime.send(new RetrieveAndGenerateCommand({
+		retrieveAndGenerateConfiguration: {
+			type: 'KNOWLEDGE_BASE',
+			knowledgeBaseConfiguration: {
+				knowledgeBaseId: KNOWLEDGE_BASE_ID,
+				modelArn: KNOWLEDGE_BASE_MODEL_ARN,
+				generationConfiguration: {
+					inferenceConfig: {
+						textInferenceConfig: {
+							maxTokens: 1024,
+							temperature: 0.1,
+							topP: 0.9
+						}
+					}
+				},
+				retrievalConfiguration: {
+					vectorSearchConfiguration: {
+						filter
+					}
+				}
+			}
+		},
+		input: {
+			text: query,
+		}
+	}))
+	return response.output.text
 }
