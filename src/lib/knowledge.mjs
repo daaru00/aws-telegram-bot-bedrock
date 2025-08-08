@@ -53,7 +53,6 @@ export async function ingest(text, metadata) {
 export async function retrieve(query, filter) {
 	const response = await bedrockRuntime.send(new RetrieveCommand({
 		knowledgeBaseId: KNOWLEDGE_BASE_ID,
-		dataSourceId: DATA_SOURCE_ID,
 		retrievalQuery: {
 			text: query,
 		},
@@ -98,5 +97,10 @@ export async function retrieveAndGenerate(query, filter) {
 			text: query,
 		}
 	}))
+
+	if (!response.output || !response.output.text || response.output.text.includes('I am unable to assist you with this request')) {
+		return ''
+	}
+
 	return response.output.text
 }

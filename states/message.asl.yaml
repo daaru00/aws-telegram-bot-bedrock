@@ -1,5 +1,32 @@
-StartAt: SetDefaultToolResponses
+StartAt: AcquireLock
 States:
+  AcquireLock:
+    Type: Task
+    Resource: arn:aws:states:::aws-sdk:dynamodb:putItem
+    Parameters:
+      TableName: ${StatusTableName}
+      Item:
+        chat_id:
+          N.$: "States.Format('{}',$.detail.message.chat.id)"
+      ConditionExpression: attribute_not_exists(#chat_id)
+      ExpressionAttributeNames:
+        "#chat_id": chat_id
+    Retry:
+      - ErrorEquals:
+          - DynamoDb.ConditionalCheckFailedException
+        IntervalSeconds: 5
+        MaxAttempts: 10
+    Catch:
+      - ErrorEquals:
+          - DynamoDb.ConditionalCheckFailedException
+        Next: ProcessLocked
+    ResultPath: null
+    Next: SetDefaultToolResponses
+
+  ProcessLocked:
+    Type: Pass
+    End: true
+
   SetDefaultToolResponses:
     Type: Pass
     Parameters:
@@ -34,7 +61,7 @@ States:
       toolResults.$: $.response.toolResults
     Retry:
       - ErrorEquals:
-        - "ThrottlingException"
+          - "ThrottlingException"
         IntervalSeconds: 10
         JitterStrategy: FULL
         MaxAttempts: 5
@@ -117,4 +144,14 @@ States:
             chat_id.$: $.detail.message.chat.id
             text.$: $.response.text
     ResultPath: null
+    Next: ReleaseLock
+
+  ReleaseLock:
+    Type: Task
+    Resource: arn:aws:states:::aws-sdk:dynamodb:deleteItem
+    Parameters:
+      TableName: ${StatusTableName}
+      Key:
+        chat_id:
+          N.$: "States.Format('{}',$.detail.message.chat.id)"
     End: true

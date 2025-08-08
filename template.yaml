@@ -357,6 +357,18 @@ Resources:
         BlockPublicPolicy: true
         RestrictPublicBuckets: true
 
+  StatusTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-status"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: chat_id
+          AttributeType: N
+      KeySchema:
+        - AttributeName: chat_id
+          KeyType: HASH
+
   ##
   # Integration
   ##
@@ -413,12 +425,15 @@ Resources:
       Name: !Sub "${AWS::StackName}-message"
       DefinitionUri: states/message.asl.yaml
       DefinitionSubstitutions:
+        StatusTableName: !Ref StatusTable
         EventBusName: !Ref EventBus
         EventSource: !Ref AWS::StackName
         MessageFunctionArn: !GetAtt BedrockIntegrationMessageFunction.Arn
         CompletionFunctionArn: !GetAtt BedrockIntegrationCompletionFunction.Arn
         ToolFunctionArnPrefix: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-tools-"
       Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref StatusTable
         - EventBridgePutEventsPolicy:
             EventBusName: !Ref EventBus
         - LambdaInvokePolicy:
