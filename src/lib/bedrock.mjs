@@ -42,8 +42,8 @@ export async function listTools() {
  * @param {string} system
  * @param {import('@aws-sdk/client-bedrock-runtime').Message[]} messages
  * @param {import('@aws-sdk/client-bedrock-runtime').Tool[]} tools
- * @returns {Promise<{ response: string, stopReason: string, usage: object, history: import('@aws-sdk/client-bedrock-runtime').Message[], tools: import('@aws-sdk/client-bedrock-runtime').ToolUseBlock[] }>}
- */
+ * @returns {Promise<{ response: string, stopReason: string, usage: object, toolUses: import('@aws-sdk/client-bedrock-runtime').ToolUseBlock[] }>}
+*/
 export async function generateResponse(system, messages, tools = []) {
 	let { output, stopReason, usage } = await bedrock.send(new ConverseCommand({
 		modelId: MODEL_ID,
@@ -61,16 +61,32 @@ export async function generateResponse(system, messages, tools = []) {
 	}))
   
 	const response = output.message.content.reduce((acc, item) => acc + item.text, '').trim().replace(/\.$/, '')
-	const toolUses = output.message.content.filter(item => item.toolUse).map(item => item.toolUse)
+	let toolUses = output.message.content.filter(item => item.toolUse).map(item => item.toolUse)
+
+	if (toolUses.length > 0) {
+		toolUses = toolUses.map(toolUse => {
+			if (typeof toolUse.input === 'string') {
+				toolUse.input = JSON.parse(toolUse.input || '{}')
+			}
+			return toolUse
+		})
+	}
 
 	return {
 		response,
-		toolUses,
 		stopReason,
-		usage
+		usage,
+		toolUses,
 	}
 }
 
+/**
+ * @param {string} system
+ * @param {import('@aws-sdk/client-bedrock-runtime').Message[]} messages
+ * @param {import('@aws-sdk/client-bedrock-runtime').Tool[]} tools
+ * @param {function} onWriting
+ * @returns {Promise<{ response: string, stopReason: string, usage: object, toolUses: import('@aws-sdk/client-bedrock-runtime').ToolUseBlock[] }>}
+ */
 export async function generateResponseStream(system, messages, tools = [], onWriting) {
 	let { stream } = await bedrock.send(new ConverseStreamCommand({
 		modelId: MODEL_ID,
@@ -122,7 +138,7 @@ export async function generateResponseStream(system, messages, tools = [], onWri
 	if (toolUses.length > 0) {
 		toolUses = toolUses.map(toolUse => {
 			if (typeof toolUse.input === 'string') {
-				toolUse.input = JSON.parse(toolUse.input)
+				toolUse.input = JSON.parse(toolUse.input || '{}')
 			}
 			return toolUse
 		})
@@ -130,8 +146,8 @@ export async function generateResponseStream(system, messages, tools = [], onWri
 
 	return {
 		response,
-		toolUses,
 		stopReason,
-		usage
+		usage,
+		toolUses,
 	}
 }

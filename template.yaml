@@ -22,7 +22,7 @@ Parameters:
   MessageModelId:
     Type: String
     Description: "Model identifier"
-    Default: "anthropic.claude-3-sonnet-20240229-v1:0"
+    Default: "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
   MessageGenerationTimeout:
     Type: Number
     Description: "Message generation timeout in seconds"
@@ -386,7 +386,6 @@ Resources:
       Timeout: !Ref CompletionGenerationTimeout
       Environment:
         Variables:
-          SYSTEM_PROMPT: !Ref SystemPrompt
           MODEL_ID: !Ref CompletionModelId
           MAX_TOKENS: !Ref MaxTokens
       Policies:
@@ -434,13 +433,48 @@ Resources:
   # Tools
   ##
 
+  DateTimeToolFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-tools-datetime"
+      Handler: tools/datetime.handler
+      Timeout: 6
+      MemorySize: 128
+
+  DateTimeToolParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/tools/datetime"
+      Type: String
+      Value: !Sub |
+        {
+          "name": "datetime",
+          "description": "Get the current date and time",
+          "inputSchema": {
+            "json": {
+              "type": "object",
+              "properties": {},
+              "required": []
+            }
+          }
+        }
+
   HttpToolFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "${AWS::StackName}-tools-http"
-      Handler: tools.http
+      Handler: tools/http.handler
       Timeout: 30
       MemorySize: 512
+      Environment:
+        Variables:
+          MODEL_ID: !Ref CompletionModelId
+          MAX_TOKENS: !Ref MaxTokens
+      Policies:
+        - Statement:
+          - Effect: "Allow"
+            Action: "bedrock:InvokeModel"
+            Resource: "*"
 
   HttpToolParameter:
     Type: AWS::SSM::Parameter

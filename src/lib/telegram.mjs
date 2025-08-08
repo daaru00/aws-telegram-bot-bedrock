@@ -4,7 +4,7 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
 /**
  * @param {object} fileObject
  * @param {string} fileObject.file_id
- * @returns {Uint8Array}
+ * @returns {Promise<Uint8Array>}
  */
 export async function downloadFile (fileObject) {
 	if (!fileObject || !fileObject.file_id) {
@@ -32,6 +32,7 @@ export async function downloadFile (fileObject) {
 
 /**
  * @param {number} chatId 
+ * @returns {Promise<void>}
  */
 export async function sendTypingAction(chatId) {
 	await fetch(`${TELEGRAM_API_ENDPOINT}/bot${TELEGRAM_BOT_TOKEN}/sendChatAction`, {

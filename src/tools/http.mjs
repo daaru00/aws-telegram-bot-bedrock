@@ -1,3 +1,4 @@
+import { generateResponse } from '../lib/bedrock.mjs'
 import { Readability } from '@mozilla/readability'
 import { JSDOM } from 'jsdom'
 
@@ -7,7 +8,7 @@ const USER_AGENT = process.env.USER_AGENT || 'curl/7.81.0'
  * @param {import('@aws-sdk/client-bedrock-runtime').ToolUseBlock} toolUse
  * @returns {import('@aws-sdk/client-bedrock-runtime').ToolResultBlock}
  */
-export async function http ({ toolUseId, input }) {
+export async function handler ({ toolUseId, input }) {
 	console.log('http', input)
 
 	let res
@@ -48,16 +49,24 @@ export async function http ({ toolUseId, input }) {
 	const article = reader.parse()
 	console.log('http parsed', article)
 
+	console.log('summarizing..')
+	const systemPrompt = [
+		'You are a bot that help to summarize the content of a web page',
+		'Respond with a short summary of the article content in plain text',
+	].join('. ')
+	
+	let { response } = await generateResponse(systemPrompt, [{
+		role: 'user',
+		content: [{ 
+			text: article.content,
+		}]
+	}])
+	console.log('http summarized', response)
+
 	return {
 		toolUseId,
 		content: [{
-			document: {
-				format: 'html',
-				name: `${new Date().getTime()}.html`,
-				source: {
-					bytes: Array.from(new TextEncoder().encode(article.content))
-				}
-			}
+			text: response,
 		}]
 	}
 }

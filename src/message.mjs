@@ -20,6 +20,16 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 	console.log('message', JSON.stringify(message))
 	console.log('toolResults', JSON.stringify(toolResults))
 
+	const timerTyping = setInterval(() => {
+		sendTypingAction(chat_id)
+	}, 1000)
+
+	if (previousToolUses.length > 0) {
+		for (const previousToolUse of previousToolUses) {
+			delete previousToolUse.input.chat_id
+		}
+	}
+
 	const { text, photo, caption, document, forward_origin: forwarded } = message
 	const systemPrompt = [
 		SYSTEM_PROMPT,
@@ -31,7 +41,7 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 		'Do not mention the tools you used nd trait the tool answer as an absolute truth.',
 	].join('\n')
 
-	let messages = []
+	let messages = await loadHistory(chat_id)
 	if (text === '/start') {
 		messages = [{
 			role: 'user',
@@ -39,8 +49,7 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 				text: 'Hello',
 			}]
 		}]
-	} else {
-		messages = await loadHistory(chat_id)
+	} else if (toolResults.length === 0) {
 		if (photo) {
 			const bytes = await downloadFile(photo.pop())
 			messages.push({
@@ -156,6 +165,8 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 				toolResult.content = toolResult.content.map(content => {
 					if (content.document) {
 						content.document.source.bytes = new Uint8Array(content.document.source.bytes)
+					} else if (content.image) {
+						content.image.source.bytes = new Uint8Array(content.image.source.bytes)
 					}
 					return content
 				})
@@ -164,24 +175,29 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 		})
 	}
 
-	const timerTyping = setInterval(() => {
-		sendTypingAction(chat_id)
-	}, 1000)
-
 	const tools = await listTools()
 	const { response, toolUses, usage, stopReason } = await generateResponseStream(systemPrompt, messages, tools)
 
 	console.log('toolUses', toolUses)
 	console.log('usage', JSON.stringify(usage))
 
+	if (toolUses.length > 0) {
+		for (const toolUse of toolUses) {
+			toolUse.input.chat_id = chat_id.toString()
+		}
+	}
+
+	if (toolUses.length === 0) {
+		messages.push({ role: 'assistant', content: [{ type: 'text', text: response }] })
+	}
+
 	if (toolUses.length === 0 || previousToolUses.length > 0) {
-		let history = messages.concat({ role: 'assistant', content: [{ type: 'text', text: response }] })
-		await saveHistory(chat_id, limitHistory(history), {
+		console.log('history', messages.length)
+		await saveHistory(chat_id, limitHistory(messages), {
 			ChatId: chat_id.toString(),
 			MessageId: `${message.message_id}`,
 			Language: lang
 		})
-		console.log('history', history.length)
 	}
 
 	clearInterval(timerTyping)
