@@ -191,14 +191,12 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 		messages.push({ role: 'assistant', content: [{ type: 'text', text: response }] })
 	}
 
-	if (toolUses.length === 0 || previousToolUses.length > 0) {
-		console.log('history', messages.length)
-		await saveHistory(chat_id, limitHistory(messages), {
-			ChatId: chat_id.toString(),
-			MessageId: `${message.message_id}`,
-			Language: lang
-		})
-	}
+	console.log('history', messages.length)
+	await saveHistory(chat_id, limitHistory(messages), {
+		ChatId: chat_id.toString(),
+		MessageId: `${message.message_id}`,
+		Language: lang
+	})
 
 	clearInterval(timerTyping)
 

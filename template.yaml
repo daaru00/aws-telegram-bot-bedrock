@@ -47,12 +47,25 @@ Parameters:
     Type: Number
     Description: "Maximum number of message to store in history"
     Default: 10
+  KnowledgeBaseId:
+    Type: String
+    Description: "Knowledge base identifier"
+    Default: ""
+  DataSourceId:
+    Type: String
+    Description: "Data source identifier"
+    Default: ""
 
 Globals:
   Function:
     Tracing: Active
-    Runtime: nodejs20.x
+    Runtime: nodejs22.x
     CodeUri: src/
+
+Conditions:
+  IsKnowledgeBaseIdSet: !Not [!Equals [!Ref KnowledgeBaseId, ""]]
+  IsDataSourceIdSet: !Not [!Equals [!Ref DataSourceId, ""]]
+  IsKnowledgeBaseEnabled: !And [!Condition IsKnowledgeBaseIdSet, !Condition IsDataSourceIdSet]
 
 Resources:
       
@@ -497,6 +510,98 @@ Resources:
               },
               "required": [
                 "url"
+              ]
+            }
+          }
+        }
+
+  MemorySaveToolFunction:
+    Condition: IsKnowledgeBaseEnabled
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-tools-memory-save"
+      Handler: tools/memory.save
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          KNOWLEDGE_BASE_ID: !Ref KnowledgeBaseId
+          DATA_SOURCE_ID: !Ref DataSourceId
+      Policies:
+        - Statement:
+          - Effect: "Allow"
+            Action: 
+              - "bedrock:StartIngestionJob"
+              - "bedrock:IngestKnowledgeBaseDocuments"
+            Resource: 
+              - !Sub "arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/${KnowledgeBaseId}"
+
+  MemorySaveToolParameter:
+    Condition: IsKnowledgeBaseEnabled
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/tools/memory-save"
+      Type: String
+      Value: !Sub |
+        {
+          "name": "memory-save",
+          "description": "Save a text into the knowledge base. Use this tool to store information about the user your are chatting with that can be retrieved later. You decide when to use this tool when you feel information should be saved. Don't mention that you've saved it to the user you're chatting to, just continue with the conversation.",
+          "inputSchema": {
+            "json": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "description": "The text to save"
+                }
+              },
+              "required": [
+                "text"
+              ]
+            }
+          }
+        }
+
+  MemorySearchToolFunction:
+    Condition: IsKnowledgeBaseEnabled
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-tools-memory-search"
+      Handler: tools/memory.search
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          KNOWLEDGE_BASE_ID: !Ref KnowledgeBaseId
+          DATA_SOURCE_ID: !Ref DataSourceId
+      Policies:
+        - Statement:
+          - Effect: "Allow"
+            Action: "bedrock:Retrieve"
+            Resource: 
+              - !Sub "arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/${KnowledgeBaseId}"
+
+  MemorySearchToolParameter:
+    Condition: IsKnowledgeBaseEnabled
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/tools/memory-search"
+      Type: String
+      Value: !Sub |
+        {
+          "name": "memory-search",
+          "description": "Search in the knowledge base. Use this tool to retrieve information about the user you are chatting with that has been previously saved. You decide when to use this tool when you feel you need information about the user. Don't mention to the user you're chatting with that you've retrieved their information.",
+          "inputSchema": {
+            "json": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string",
+                  "description": "The query to search in the knowledge base"
+                }
+              },
+              "required": [
+                "query"
               ]
             }
           }
