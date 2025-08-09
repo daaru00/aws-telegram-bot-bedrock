@@ -390,6 +390,8 @@ Resources:
           MAX_TOKENS: !Ref MaxTokens
           TELEGRAM_API_ENDPOINT: !Ref TelegramApiEndpoint
           TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
+          KNOWLEDGE_BASE_ID: !If [IsKnowledgeBaseEnabled, !Ref KnowledgeBaseId, ""]
+          KNOWLEDGE_BASE_MODEL_ARN: !If [IsKnowledgeBaseEnabled, !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/${CompletionModelId}", ""]
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref ChatHistoryBucket
@@ -402,6 +404,16 @@ Resources:
               - "bedrock:InvokeModel"
               - "bedrock:InvokeModelWithResponseStream"
             Resource: "*"
+        - !If
+          - IsKnowledgeBaseEnabled
+          - Statement:
+              Effect: "Allow"
+              Action: 
+                - "bedrock:Retrieve"
+                - "bedrock:RetrieveAndGenerate"
+              Resource: 
+                - !Sub "arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/${KnowledgeBaseId}"
+          - !Ref "AWS::NoValue"
 
   BedrockIntegrationCompletionFunction:
     Type: AWS::Serverless::Function
@@ -588,7 +600,6 @@ Resources:
       Environment:
         Variables:
           KNOWLEDGE_BASE_ID: !Ref KnowledgeBaseId
-          DATA_SOURCE_ID: !Ref DataSourceId
           KNOWLEDGE_BASE_MODEL_ARN: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/${CompletionModelId}"
       Policies:
         - Statement:

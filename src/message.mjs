@@ -2,8 +2,10 @@ import path from 'node:path'
 import { loadHistory, saveHistory, limitHistory } from './lib/history.mjs'
 import { downloadFile, sendTypingAction } from './lib/telegram.mjs'
 import { generateResponseStream, listTools } from './lib/bedrock.mjs'
+import { retrieveAndGenerate } from './lib/knowledge.mjs'
 
 const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT
+const KNOWLEDGE_BASE_ENABLED = process.env.KNOWLEDGE_BASE_ID !== ''
 
 /**
  * @param {object} event
@@ -31,7 +33,7 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 	}
 
 	const { text, photo, caption, document, forward_origin: forwarded } = message
-	const systemPrompt = [
+	let systemPrompt = [
 		SYSTEM_PROMPT,
 		`Current timestamp is ${new Date().toLocaleString()} UTC+0.`,
 		user ? `The user you're chatting with is named ${user}.` : '',
@@ -41,6 +43,20 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 		'Do not mention the tools you used nd trait the tool answer as an absolute truth.',
 		'You may receive a message like "[SCHEDULE <id>]: <message>", in which case the message was not sent by the user but was scheduled via a scheduler. Follow the instructions in the message, reply to the message to start communicating with the user.',
 	].join('\n')
+
+	if (KNOWLEDGE_BASE_ENABLED) {
+		systemPrompt += '\nBefore asking the user for things, check in your memory (using the appropriate search tool) if you already know the answer, if so, don\'t ask again.'
+		const knowledgeBaseResponse = await retrieveAndGenerate(`A short and concise summary of what you know about ${user}, his way of thinking, his preferences, what he is doing or is about to do and the people connected to him.`, {
+			equals: {
+				key: 'chat_id',
+				value: `${chat_id}`
+			}
+		})
+		if (knowledgeBaseResponse) {
+			systemPrompt += `\nUser information taken from memory: ${knowledgeBaseResponse}`
+			console.log('knowledgeBase', knowledgeBaseResponse)
+		}
+	}
 
 	let messages = await loadHistory(chat_id)
 	if (text === '/start') {
