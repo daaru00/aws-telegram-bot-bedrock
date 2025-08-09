@@ -6,6 +6,7 @@ const bedrockRuntime = new BedrockAgentRuntimeClient()
 const KNOWLEDGE_BASE_ID = process.env.KNOWLEDGE_BASE_ID
 const DATA_SOURCE_ID = process.env.DATA_SOURCE_ID
 const KNOWLEDGE_BASE_MODEL_ARN = process.env.KNOWLEDGE_BASE_MODEL_ARN
+const KNOWLEDGE_BASE_MAX_TOKENS = parseInt(process.env.KNOWLEDGE_BASE_MAX_TOKENS || 2048)
 
 /**
  * @param {string} text 
@@ -80,7 +81,7 @@ export async function retrieveAndGenerate(query, filter) {
 				generationConfiguration: {
 					inferenceConfig: {
 						textInferenceConfig: {
-							maxTokens: 1024,
+							maxTokens: KNOWLEDGE_BASE_MAX_TOKENS,
 							temperature: 0.1,
 							topP: 0.9
 						}

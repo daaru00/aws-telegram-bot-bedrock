@@ -55,6 +55,10 @@ Parameters:
     Type: String
     Description: "Data source identifier"
     Default: ""
+  KnowledgeBaseMaxTokens:
+    Type: Number
+    Description: "Maximum number of tokens to generate for knowledge base queries"
+    Default: "2048"
 
 Globals:
   Function:
@@ -392,6 +396,7 @@ Resources:
           TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
           KNOWLEDGE_BASE_ID: !If [IsKnowledgeBaseEnabled, !Ref KnowledgeBaseId, ""]
           KNOWLEDGE_BASE_MODEL_ARN: !If [IsKnowledgeBaseEnabled, !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/${CompletionModelId}", ""]
+          KNOWLEDGE_BASE_MAX_TOKENS: !Ref KnowledgeBaseMaxTokens
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref ChatHistoryBucket
@@ -601,6 +606,7 @@ Resources:
         Variables:
           KNOWLEDGE_BASE_ID: !Ref KnowledgeBaseId
           KNOWLEDGE_BASE_MODEL_ARN: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/${CompletionModelId}"
+          KNOWLEDGE_BASE_MAX_TOKENS: !Ref KnowledgeBaseMaxTokens
       Policies:
         - Statement:
           - Effect: "Allow"
@@ -692,14 +698,14 @@ Resources:
       Value: !Sub |
         {
           "name": "schedule-create",
-          "description": "Schedule a message that will be sent to yourself. You can use this tool to schedule messages in the future at the specified time, by cron expression and you can choose if it should be recurring or not (if not will be deleted after the first execution). The tool respond with the id of the created schedule.",
+          "description": "Schedule a message that will be sent to yourself. You can use this tool to schedule messages (eg: 'send a message to wish a good trip') to yourself in the future at the specified time, by cron expression and you can choose if it should be recurring or not (if not will be deleted after the first execution). The tool respond with the id of the created schedule.",
           "inputSchema": {
             "json": {
               "type": "object",
               "properties": {
                 "message": {
                   "type": "string",
-                  "description": "The message to schedule"
+                  "description": "The message to schedule as your reminder"
                 },
                 "expression": {
                   "type": "string",

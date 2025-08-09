@@ -38,13 +38,13 @@ export async function create ({ toolUseId, input }) {
 					'detail': {
 						'message': {
 							'from': {
-								'first_name': null,
-								'language_code': null
+								'first_name': input.user,
+								'language_code': input.lang
 							},
 							'chat': {
 								'id': parseInt(input.chat_id),
 							},
-							'text': `[SCHEDULE ${id}]: ${input.text}`,
+							'text': `[SCHEDULE ${id}]: ${input.message}`,
 						}
 					}
 				})

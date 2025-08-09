@@ -29,6 +29,8 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 	if (previousToolUses.length > 0) {
 		for (const previousToolUse of previousToolUses) {
 			delete previousToolUse.input.chat_id
+			delete previousToolUse.input.user
+			delete previousToolUse.input.lang
 		}
 	}
 
@@ -36,16 +38,17 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 	let systemPrompt = [
 		SYSTEM_PROMPT,
 		`Current timestamp is ${new Date().toLocaleString()} UTC+0.`,
-		user ? `The user you're chatting with is named ${user}.` : '',
+		`The user you're chatting with is named ${user}.`,
 		'You can use only the following HTML tags to highligh the response text: <b>, <i>, <u>, <code>, <pre>, <a>; otherwise the answer must be a plain text without formatting.',
-		lang ? `Despite the system and/or user prompt, your response MUST BE in the language code '${lang}'.` : 'Despite the system and/or user prompt, your response MUST BE in the same language code of the user message.',
+		`Despite the system and/or user prompt, your response MUST BE in the language code '${lang}'.`,
 		'Use a tool instead of your internal knowledge to accomplish the task of the available tools.',
 		'Do not mention the tools you used nd trait the tool answer as an absolute truth.',
 		'You may receive a message like "[SCHEDULE <id>]: <message>", in which case the message was not sent by the user but was scheduled via a scheduler. Follow the instructions in the message, reply to the message to start communicating with the user.',
+		'If you become aware of some upcoming event concerning the user (for example, a trip, an exam, a birthday), schedule a reminder message with the \'schedule-create\' tool to wish a good trip or good luck (or other similar wishes based on the event).'
 	].join('\n')
 
 	if (KNOWLEDGE_BASE_ENABLED) {
-		systemPrompt += '\nBefore asking the user for things, check in your memory (using the appropriate search tool) if you already know the answer, if so, don\'t ask again.'
+		systemPrompt += '\nBefore asking the user for information, check in your memory (using the \'memory-search\' tool) if you already know the answer, if so, don\'t ask but use the information you have.'
 		const knowledgeBaseResponse = await retrieveAndGenerate(`A short and concise summary of what you know about ${user}, his way of thinking, his preferences, what he is doing or is about to do and the people connected to him.`, {
 			equals: {
 				key: 'chat_id',
@@ -201,6 +204,8 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 	if (toolUses.length > 0) {
 		for (const toolUse of toolUses) {
 			toolUse.input.chat_id = chat_id.toString()
+			toolUse.input.user = user
+			toolUse.input.lang = lang
 		}
 	}
 
