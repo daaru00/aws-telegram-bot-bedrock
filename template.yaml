@@ -238,10 +238,10 @@ Resources:
         Version: "2012-10-17"
         Statement:
           - Effect: "Allow"
-            Principal:
-              Service: "apigateway.amazonaws.com"
             Action: 
               - "sts:AssumeRole"
+            Principal:
+              Service: "apigateway.amazonaws.com"
       Policies:
         - PolicyName: ApiDirectWriteEventBridge
           PolicyDocument:
@@ -624,6 +624,155 @@ Resources:
               },
               "required": [
                 "query"
+              ]
+            }
+          }
+        }
+
+  ScheduleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - scheduler.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: '/service-role/'
+      Policies:
+        - PolicyName: execute-step-function
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:StartExecution
+                Resource: 
+                  - !Ref MessageReceivedStateMachine
+
+  ScheduleCreateToolFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-tools-schedule-create"
+      Handler: tools/schedule.create
+      Timeout: 6
+      MemorySize: 128
+      Environment:
+        Variables:
+          STEP_FUNCTION_ARN: !Ref MessageReceivedStateMachine
+          SCHEDULER_ROLE_ARN: !GetAtt ScheduleRole.Arn
+      Policies:
+        - Statement:
+          - Effect: "Allow"
+            Action:  "scheduler:CreateSchedule"
+            Resource: "*"
+          - Effect: "Allow"
+            Action: "iam:PassRole"
+            Resource: !GetAtt ScheduleRole.Arn
+
+  ScheduleCreateToolParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/tools/schedule-create"
+      Type: String
+      Value: !Sub |
+        {
+          "name": "schedule-create",
+          "description": "Schedule a message that will be sent to yourself. You can use this tool to schedule messages in the future at the specified time, by cron expression and you can choose if it should be recurring or not (if not will be deleted after the first execution). The tool respond with the id of the created schedule.",
+          "inputSchema": {
+            "json": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "description": "The message to schedule"
+                },
+                "expression": {
+                  "type": "string",
+                  "description": "The AWS schedule expression in cron format: 'at(yyyy-mm-ddThh:mm:ss)' for a specific date and time, 'rate(value unit)' for a rate expression (e.g., 'rate(1 day)' or 'rate(2 hours)'), 'cron(minutes hours day_of_month month day_of_week year)' for a cron expression (e.g., 'cron(0 12 * * ? *)' for every day at noon)."
+                },
+                "recurring": {
+                  "type": "boolean",
+                  "description": "If true, the schedule will be recurring, otherwise it will be deleted after the first execution. Default is false."
+                }
+              },
+              "required": [
+                "message",
+                "expression"
+              ]
+            }
+          }
+        }
+
+  ScheduleListToolFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-tools-schedule-list"
+      Handler: tools/schedule.list
+      Timeout: 30
+      MemorySize: 256
+      Policies:
+        - Statement:
+          - Effect: "Allow"
+            Action:  
+              - "scheduler:ListSchedules"
+              - "scheduler:GetSchedule"
+            Resource: "*"
+
+  ScheduleListToolParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/tools/schedule-list"
+      Type: String
+      Value: !Sub |
+        {
+          "name": "schedule-list",
+          "description": "List all the scheduled messages you have created. You can use this tool to list all the scheduled messages you have created with the schedule-create tool.",
+          "inputSchema": {
+            "json": {
+              "type": "object",
+              "properties": {},
+              "required": []
+            }
+          }
+        }
+  
+  ScheduleRemoveToolFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-tools-schedule-remove"
+      Handler: tools/schedule.remove
+      Timeout: 6
+      MemorySize: 128
+      Policies:
+        - Statement:
+          - Effect: "Allow"
+            Action:  "scheduler:DeleteSchedule"
+            Resource: "*"
+
+  ScheduleRemoveToolParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/tools/schedule-remove"
+      Type: String
+      Value: !Sub |
+        {
+          "name": "schedule-remove",
+          "description": "Remove a scheduled message by id. You can use this tool to remove a scheduled message that you previously created with the schedule-create tool.",
+          "inputSchema": {
+            "json": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "The id of the schedule to remove"
+                }
+              },
+              "required": [
+                "id"
               ]
             }
           }

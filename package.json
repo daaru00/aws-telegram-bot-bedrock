@@ -11,6 +11,7 @@
 		"@aws-sdk/client-bedrock-agent-runtime": "^3.863.0",
 		"@aws-sdk/client-bedrock-runtime": "^3.863.0",
 		"@aws-sdk/client-s3": "^3.863.0",
+		"@aws-sdk/client-scheduler": "^3.863.0",
 		"@aws-sdk/client-ssm": "^3.645.0",
 		"eslint": "^8.44.0"
 	}

@@ -34,11 +34,12 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 	const systemPrompt = [
 		SYSTEM_PROMPT,
 		`Current timestamp is ${new Date().toLocaleString()} UTC+0.`,
-		`The user you're chatting with is named ${user}.`,
+		user ? `The user you're chatting with is named ${user}.` : '',
 		'You can use only the following HTML tags to highligh the response text: <b>, <i>, <u>, <code>, <pre>, <a>; otherwise the answer must be a plain text without formatting.',
-		`Despite the system and/or user prompt, your response MUST BE in the language code '${lang}'.`,
+		lang ? `Despite the system and/or user prompt, your response MUST BE in the language code '${lang}'.` : 'Despite the system and/or user prompt, your response MUST BE in the same language code of the user message.',
 		'Use a tool instead of your internal knowledge to accomplish the task of the available tools.',
 		'Do not mention the tools you used nd trait the tool answer as an absolute truth.',
+		'You may receive a message like "[SCHEDULE <id>]: <message>", in which case the message was not sent by the user but was scheduled via a scheduler. Follow the instructions in the message, reply to the message to start communicating with the user.',
 	].join('\n')
 
 	let messages = await loadHistory(chat_id)
