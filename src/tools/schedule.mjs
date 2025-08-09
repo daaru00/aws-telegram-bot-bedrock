@@ -10,14 +10,27 @@ const SCHEDULER_ROLE_ARN = process.env.SCHEDULER_ROLE_ARN
  */
 export async function create ({ toolUseId, input }) {
 	const id = new Date().getTime()
+	
+	const startDate = new Date()
+	if (input.expression.startsWith('rate(')) {
+		if (input.expression.includes('minute')) {
+			startDate.setMinutes(startDate.getMinutes() + 10)
+		} else if (input.expression.includes('hour')) {
+			startDate.setHours(startDate.getHours() + 1)
+		} else {
+			startDate.setDate(startDate.getDate() + 1)
+		}
+	}
+
 	try {
 		await scheduler.send(new CreateScheduleCommand({
 			Name: `${input.chat_id}-${id}`,
 			ScheduleExpression: input.expression,
-			ActionAfterCompletion: input.recurring ? 'NONE' : 'DELETE',
+			ActionAfterCompletion: !input.recurring ? 'DELETE' : 'NONE',
 			FlexibleTimeWindow: {
 				Mode: 'OFF',
 			},
+			StartDate: startDate,
 			Target: {
 				Arn: STEP_FUNCTION_ARN,
 				RoleArn: SCHEDULER_ROLE_ARN,
