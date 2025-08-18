@@ -1,0 +1,98 @@
+StartAt: SendTyping
+States:
+  SendTyping:
+    Type: Task
+    Resource: 'arn:aws:states:::events:putEvents'
+    Parameters:
+      Entries:
+        - EventBusName: ${EventBusName}
+          Source: ${EventSource}
+          DetailType: Send Chat Action
+          Detail:
+            chat_id.$: $.detail.message.chat.id
+            action: typing
+    ResultPath: null
+    Next: DownloadAudio
+
+  DownloadAudio:
+    Type: Task
+    Resource: '${DownloadFileFunctionArn}'
+    InputPath: $.detail.message
+    ResultPath: $.audio
+    Next: StartTranscriptionJob
+
+  StartTranscriptionJob:
+    Type: Task
+    Resource: 'arn:aws:states:::aws-sdk:transcribe:startTranscriptionJob'
+    Parameters:
+      TranscriptionJobName.$: $.audio.file_unique_id
+      IdentifyLanguage: true
+      LanguageOptions: 
+        - it-IT
+        - en-GB
+        - en-US
+      OutputBucketName: '${OutputBucketName}'
+      OutputKey.$: "States.Format('output/{}', $.audio.file_unique_id)"
+      Media:
+        MediaFileUri.$: $.audio.s3_uri
+    Catch:
+      - ErrorEquals:
+          - "Transcribe.ConflictException"
+        ResultPath: null
+        Next: GetTranscriptionJob
+    ResultSelector:
+      status.$: $.TranscriptionJob.TranscriptionJobStatus
+    ResultPath: $.transcription
+    Next: WaitTranscriptionJob
+
+  WaitTranscriptionJob:
+    Type: Wait
+    Seconds: 5
+    Next: GetTranscriptionJob
+  
+  GetTranscriptionJob:
+    Type: Task
+    Resource: 'arn:aws:states:::aws-sdk:transcribe:getTranscriptionJob'
+    Parameters:
+      TranscriptionJobName.$: $.audio.file_unique_id
+    ResultSelector:
+      status.$: $.TranscriptionJob.TranscriptionJobStatus
+    ResultPath: $.transcription
+    Next: CheckJobStatus
+
+  CheckJobStatus:
+    Type: Choice
+    Choices:
+      - Variable: $.transcription.status
+        StringEquals: IN_PROGRESS
+        Next: SendTypingAgain
+      - Variable: $.transcription.status
+        StringEquals: FAILED
+        Next: TranscriptionFailed
+    Default: GetJobResult
+
+  SendTypingAgain:
+    Type: Task
+    Resource: 'arn:aws:states:::events:putEvents'
+    Parameters:
+      Entries:
+        - EventBusName: ${EventBusName}
+          Source: ${EventSource}
+          DetailType: Send Chat Action
+          Detail:
+            chat_id.$: $.detail.message.chat.id
+            action: typing
+    ResultPath: null
+    Next: WaitTranscriptionJob
+
+  TranscriptionFailed:
+    Type: Fail
+    Error: TranscriptionFailed
+
+  GetJobResult:
+    Type: Task
+    Resource: '${GetTranscriptionFunctionArn}'
+    Parameters:
+      bucket: '${OutputBucketName}'
+      key.$: "States.Format('output/{}', $.audio.file_unique_id)"
+    End: true

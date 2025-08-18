@@ -21,11 +21,40 @@ States:
           - DynamoDb.ConditionalCheckFailedException
         Next: ProcessLocked
     ResultPath: null
-    Next: SetDefaultToolResponses
+    Next: CheckAudio
 
   ProcessLocked:
     Type: Pass
     End: true
+
+  CheckAudio:
+    Type: Choice
+    Choices:
+      - Variable: $.detail.message.voice
+        IsPresent: true
+        Next: TranscribeAudio
+      - Variable: $.detail.message.audio
+        IsPresent: true
+        Next: TranscribeAudio
+    Default: SetDefaultToolResponses
+
+  TranscribeAudio:
+    Type: Task
+    Resource: 'arn:aws:states:::states:startExecution.sync:2'
+    Parameters:
+      StateMachineArn: '${TranscribeStateMachineArn}'
+      Input:
+        detail.$: $.detail
+    ResultSelector:
+      text.$: $.Output
+    ResultPath: $.transcription
+    Next: SetTranscriptionText
+
+  SetTranscriptionText:
+    Type: Pass
+    InputPath: $.transcription.text
+    ResultPath: $.detail.message.text
+    Next: SetDefaultToolResponses
 
   SetDefaultToolResponses:
     Type: Pass

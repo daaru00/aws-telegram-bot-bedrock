@@ -361,6 +361,26 @@ Resources:
         BlockPublicPolicy: true
         RestrictPublicBuckets: true
 
+  AudioBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-audio" 
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: delete-sent-files
+            Prefix: "input/"
+            ExpirationInDays: 1
+            Status: Enabled
+          - Id: delete-output-files
+            Prefix: "output/"
+            ExpirationInDays: 30
+            Status: Enabled
+
   StatusTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -448,6 +468,7 @@ Resources:
         MessageFunctionArn: !GetAtt BedrockIntegrationMessageFunction.Arn
         CompletionFunctionArn: !GetAtt BedrockIntegrationCompletionFunction.Arn
         ToolFunctionArnPrefix: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-tools-"
+        TranscribeStateMachineArn: !GetAtt TranscribeStateMachine.Arn
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref StatusTable
@@ -459,6 +480,22 @@ Resources:
             FunctionName: !Ref BedrockIntegrationCompletionFunction
         - LambdaInvokePolicy:
             FunctionName: !Sub "${AWS::StackName}-tools-"
+        - Statement:
+            - Effect: Allow
+              Action:
+                - states:StartExecution
+              Resource: !GetAtt TranscribeStateMachine.Arn
+            - Effect: Allow
+              Action:
+                - states:DescribeExecution
+                - states:StopExecution
+              Resource: !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:execution:${TranscribeStateMachine.Name}:*"
+            - Effect: Allow
+              Action:
+                - events:PutTargets
+                - events:PutRule
+                - events:DescribeRule
+              Resource: !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/StepFunctionsGetEventsForStepFunctionsExecutionRule"
       Events:
         ReceivedEvent:
           Type: EventBridgeRule
@@ -473,6 +510,66 @@ Resources:
                 message:
                   from:
                     username: !Ref UsernameWhitelist
+
+  ##
+  # Transcribe
+  ##
+
+  DownloadFileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-download"
+      Handler: download.handler
+      MemorySize: 512
+      Timeout: 30
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref AudioBucket
+          TELEGRAM_API_ENDPOINT: !Ref TelegramApiEndpoint
+          TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref AudioBucket
+
+  GetTranscriptionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-get-transcription"
+      Handler: transcription.handler
+      Timeout: 6
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref AudioBucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref AudioBucket
+
+  TranscribeStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub "${AWS::StackName}-transcribe"
+      DefinitionUri: states/transcribe.asl.yaml
+      DefinitionSubstitutions:
+        EventBusName: !Ref EventBus
+        EventSource: !Ref AWS::StackName
+        DownloadFileFunctionArn: !GetAtt DownloadFileFunction.Arn
+        GetTranscriptionFunctionArn: !GetAtt GetTranscriptionFunction.Arn
+        OutputBucketName: !Ref AudioBucket
+      Policies:
+        - EventBridgePutEventsPolicy:
+            EventBusName: !Ref EventBus
+        - LambdaInvokePolicy:
+            FunctionName: !Ref DownloadFileFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref GetTranscriptionFunction
+        - S3CrudPolicy:
+            BucketName: !Ref AudioBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - transcribe:StartTranscriptionJob
+                - transcribe:GetTranscriptionJob
+              Resource: '*'
 
   ##
   # Tools
