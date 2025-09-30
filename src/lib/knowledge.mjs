@@ -87,6 +87,15 @@ export async function retrieveAndGenerate(query, filter) {
 						}
 					}
 				},
+				orchestrationConfiguration: {
+					inferenceConfig: {
+						textInferenceConfig: {
+							maxTokens: KNOWLEDGE_BASE_MAX_TOKENS,
+							temperature: 0.1,
+							topP: 0.9
+						}
+					}
+				},
 				retrievalConfiguration: {
 					vectorSearchConfiguration: {
 						filter

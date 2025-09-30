@@ -91,7 +91,7 @@ States:
     Retry:
       - ErrorEquals:
           - "ThrottlingException"
-        IntervalSeconds: 10
+        IntervalSeconds: 30
         JitterStrategy: FULL
         MaxAttempts: 5
     Catch:
@@ -136,6 +136,12 @@ States:
           Parameters:
             FunctionName.$: "States.Format('${ToolFunctionArnPrefix}{}', $.name)"
             Payload.$: $
+          Retry:
+            - ErrorEquals:
+                - "ThrottlingException"
+              IntervalSeconds: 30
+              JitterStrategy: FULL
+              MaxAttempts: 5
           OutputPath: $.Payload
           End: true
     Catch:
@@ -158,6 +164,11 @@ States:
         IntervalSeconds: 2
         JitterStrategy: FULL
         MaxAttempts: 10
+    Catch:
+      - ErrorEquals:
+          - "States.ALL"
+        ResultPath: $.error
+        Next: ReleaseLock
     ResultPath: $.response
     Next: SendResponse
   

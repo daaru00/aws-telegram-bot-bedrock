@@ -21,28 +21,32 @@ Parameters:
     Description: "Telegram allowed usernames, separated by comma"
   MessageModelId:
     Type: String
-    Description: "Model identifier"
-    Default: "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+    Description: "Model identifier or inference profile ARN"
+    Default: "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+  CompletionModelId:
+    Type: String
+    Description: "Model identifier or inference profile ARN for completions"
+    Default: "amazon.nova-micro-v1:0"
   MessageGenerationTimeout:
     Type: Number
     Description: "Message generation timeout in seconds"
     Default: 30
-  CompletionModelId:
-    Type: String
-    Description: "Model identifier"
-    Default: "anthropic.claude-instant-v1"
+  MessageMaxTokens:
+    Type: Number
+    Description: "Maximum number of tokens to generate"
+    Default: 2048
   CompletionGenerationTimeout:
     Type: Number
     Description: "Message completion timeout in seconds"
     Default: 10
+  CompletionMaxTokens:
+    Type: Number
+    Description: "Maximum number of tokens to generate"
+    Default: 500
   SystemPrompt:
     Type: String
     Description: "Model instruction about how to respond to incoming messages"
     Default: "Your name is Bedrock, you are a chatbot"
-  MaxTokens:
-    Type: Number
-    Description: "Maximum number of tokens to generate"
-    Default: 500
   MaxHistoryLength:
     Type: Number
     Description: "Maximum number of message to store in history"
@@ -58,7 +62,7 @@ Parameters:
   KnowledgeBaseMaxTokens:
     Type: Number
     Description: "Maximum number of tokens to generate for knowledge base queries"
-    Default: "2048"
+    Default: 1024
 
 Globals:
   Function:
@@ -411,11 +415,11 @@ Resources:
           HISTORY_BUCKET: !Ref ChatHistoryBucket
           MAX_HISTORY_LENGTH: !Ref MaxHistoryLength
           MODEL_ID: !Ref MessageModelId
-          MAX_TOKENS: !Ref MaxTokens
+          MAX_TOKENS: !Ref MessageMaxTokens
           TELEGRAM_API_ENDPOINT: !Ref TelegramApiEndpoint
           TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
           KNOWLEDGE_BASE_ID: !If [IsKnowledgeBaseEnabled, !Ref KnowledgeBaseId, ""]
-          KNOWLEDGE_BASE_MODEL_ARN: !If [IsKnowledgeBaseEnabled, !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/${CompletionModelId}", ""]
+          KNOWLEDGE_BASE_MODEL_ARN: !If [IsKnowledgeBaseEnabled, !Ref CompletionModelId, ""]
           KNOWLEDGE_BASE_MAX_TOKENS: !Ref KnowledgeBaseMaxTokens
       Policies:
         - S3CrudPolicy:
@@ -426,6 +430,7 @@ Resources:
             Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AWS::StackName}/tools/"
           - Effect: "Allow"
             Action: 
+              - "bedrock:GetInferenceProfile"
               - "bedrock:InvokeModel"
               - "bedrock:InvokeModelWithResponseStream"
             Resource: "*"
@@ -449,7 +454,7 @@ Resources:
       Environment:
         Variables:
           MODEL_ID: !Ref CompletionModelId
-          MAX_TOKENS: !Ref MaxTokens
+          MAX_TOKENS: !Ref CompletionMaxTokens
       Policies:
         - Statement:
           - Effect: "Allow"
@@ -611,7 +616,7 @@ Resources:
       Environment:
         Variables:
           MODEL_ID: !Ref CompletionModelId
-          MAX_TOKENS: !Ref MaxTokens
+          MAX_TOKENS: !Ref KnowledgeBaseMaxTokens
       Policies:
         - Statement:
           - Effect: "Allow"
@@ -674,14 +679,17 @@ Resources:
       Value: !Sub |
         {
           "name": "memory-save",
-          "description": "Save a text into the knowledge base. Use this tool to store information about the user your are chatting with that can be retrieved later. You decide when to use this tool when you feel information should be saved. Don't mention that you've saved it to the user you're chatting to, just continue with the conversation.",
+          "description": "Save texts (as array with at least one string) into the knowledge base. Use this tool to store information about the user your are chatting with that can be retrieved later. You decide when to use this tool when you feel information should be saved. If the information is various divides in basic concepts and save more texts. Don't mention that you've saved it to the user you're chatting to, just continue with the conversation.",
           "inputSchema": {
             "json": {
               "type": "object",
               "properties": {
                 "text": {
-                  "type": "string",
-                  "description": "The text to save"
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "List of text to save"
                 }
               },
               "required": [
@@ -702,7 +710,7 @@ Resources:
       Environment:
         Variables:
           KNOWLEDGE_BASE_ID: !Ref KnowledgeBaseId
-          KNOWLEDGE_BASE_MODEL_ARN: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/${CompletionModelId}"
+          KNOWLEDGE_BASE_MODEL_ARN: !Ref CompletionModelId
           KNOWLEDGE_BASE_MAX_TOKENS: !Ref KnowledgeBaseMaxTokens
       Policies:
         - Statement:
@@ -714,6 +722,7 @@ Resources:
               - !Sub "arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/${KnowledgeBaseId}"
           - Effect: "Allow"
             Action: 
+              - "bedrock:GetInferenceProfile"
               - "bedrock:InvokeModel"
             Resource: "*"
 

@@ -5,14 +5,20 @@ import { ingest, retrieveAndGenerate } from '../lib/knowledge.mjs'
  * @returns {import('@aws-sdk/client-bedrock-runtime').ToolResultBlock}
  */
 export async function save ({ toolUseId, input }) {
+	if (!Array.isArray(input.text)) {
+		input.text = [input.text]
+	}
+
 	try {
-		await ingest(input.text, [{
-			key: 'chat_id',
-			value: {
-				type: 'STRING',
-				stringValue: input.chat_id.toString()
-			}
-		}])
+		for (const text of input.text) {
+			await ingest(text, [{
+				key: 'chat_id',
+				value: {
+					type: 'STRING',
+					stringValue: input.chat_id.toString()
+				}
+			}])
+		}
 	} catch (err) {
 		return {
 			toolUseId,
