@@ -196,6 +196,9 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 	}
 
 	const tools = await listTools()
+	console.log('available tools', tools.length)
+
+	console.log('generating..')
 	const { response, toolUses, usage, stopReason } = await generateResponseStream(systemPrompt, messages, tools)
 
 	console.log('toolUses', toolUses)
