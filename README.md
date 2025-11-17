@@ -3,6 +3,7 @@
 ![CloudFormation](https://img.shields.io/badge/-CloudFormation-%23FF4F8B)
 ![API Gateway](https://img.shields.io/badge/-API%20Gateway-%23A166FF)
 ![EventBridge](https://img.shields.io/badge/-EventBridge-%23FF4F8B)
+![Bedrock](https://img.shields.io/badge/-Bedrock-%2300a288)
 
 This is a serverless application that implements a Telegram bot connector for Amazon Bedrock.
 
