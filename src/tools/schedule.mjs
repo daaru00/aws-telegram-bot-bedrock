@@ -9,6 +9,8 @@ const SCHEDULER_ROLE_ARN = process.env.SCHEDULER_ROLE_ARN
  * @returns {import('@aws-sdk/client-bedrock-runtime').ToolResultBlock}
  */
 export async function create ({ toolUseId, input }) {
+	console.debug('schedule create', input)
+
 	const id = new Date().getTime()
 	
 	const startDate = new Date()
@@ -73,6 +75,8 @@ export async function create ({ toolUseId, input }) {
  * @returns {import('@aws-sdk/client-bedrock-runtime').ToolResultBlock}
  */
 export async function list ({ toolUseId, input }) {
+	console.debug('schedule list', input)
+
 	try {
 		const { Schedules: schedules } = await scheduler.send(new ListSchedulesCommand({
 			NamePrefix: `${input.chat_id}-`,
@@ -121,6 +125,8 @@ export async function list ({ toolUseId, input }) {
  * @returns {import('@aws-sdk/client-bedrock-runtime').ToolResultBlock}
  */
 export async function remove ({ toolUseId, input }) {
+	console.debug('schedule remove', input)
+	
 	try {
 		await scheduler.send(new DeleteScheduleCommand({
 			Name: `${input.chat_id}-${input.id}`,

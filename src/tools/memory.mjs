@@ -5,6 +5,8 @@ import { ingest, retrieveAndGenerate } from '../lib/knowledge.mjs'
  * @returns {import('@aws-sdk/client-bedrock-runtime').ToolResultBlock}
  */
 export async function save ({ toolUseId, input }) {
+	console.debug('memory save', input)
+
 	if (!Array.isArray(input.text)) {
 		input.text = [input.text]
 	}
@@ -43,6 +45,8 @@ export async function save ({ toolUseId, input }) {
  * @returns {import('@aws-sdk/client-bedrock-runtime').ToolResultBlock}
  */
 export async function search ({ toolUseId, input }) {
+	console.debug('memory search', input)
+
 	let result = ''
 	try {
 		result = await retrieveAndGenerate(input.query, {

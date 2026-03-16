@@ -2,14 +2,14 @@ import { generateResponse } from '../lib/bedrock.mjs'
 import { Readability } from '@mozilla/readability'
 import { JSDOM } from 'jsdom'
 
-const USER_AGENT = process.env.USER_AGENT || 'curl/7.81.0'
+const USER_AGENT = process.env.USER_AGENT || 'Googlebot/2.1 (+http://www.google.com/bot.html)'
 
 /**
  * @param {import('@aws-sdk/client-bedrock-runtime').ToolUseBlock} toolUse
  * @returns {import('@aws-sdk/client-bedrock-runtime').ToolResultBlock}
  */
 export async function handler ({ toolUseId, input }) {
-	console.log('http', input)
+	console.debug('http', input)
 
 	let res
 	try {

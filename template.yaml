@@ -63,6 +63,11 @@ Parameters:
     Type: Number
     Description: "Maximum number of tokens to generate for knowledge base queries"
     Default: 1024
+  SerpApiKey:
+    Type: String
+    Description: "SerpAPI key for web search tool, leave empty to disable the tool"
+    Default: ""
+    NoEcho: true
 
 Globals:
   Function:
@@ -74,6 +79,7 @@ Conditions:
   IsKnowledgeBaseIdSet: !Not [!Equals [!Ref KnowledgeBaseId, ""]]
   IsDataSourceIdSet: !Not [!Equals [!Ref DataSourceId, ""]]
   IsKnowledgeBaseEnabled: !And [!Condition IsKnowledgeBaseIdSet, !Condition IsDataSourceIdSet]
+  IsWebSearchEnabled: !Not [!Equals [!Ref SerpApiKey, ""]]
 
 Resources:
       
@@ -917,7 +923,7 @@ Resources:
       Value: !Sub |
         {
           "name": "preferences-save",
-          "description": "Save user preferences. You can use this tool to save user preferences that you want to remember during the conversation. The preferences are saved as key-value pairs, where the key is the name of the preference and the value is the value of the preference. You can save any kind of preference, such as 'preferred language', 'tone of voice', 'emoji usage' etc. Just choose a name for the preference (in the 'key' field) and provide the value (in the 'value' field).",
+          "description": "Save user preferences. You can use this tool to save user preferences that you want to remember during the conversation. The preferences are saved as key-value pairs, where the key is the name of the preference and the value is the value of the preference. You can save any kind of preference, such as preferred language, tone of voice, emoji usage, hobbies, personal relationships, job and everything else related to the user. Just choose a name for the preference (in the 'key' field) and provide the value (in the 'value' field).",
           "inputSchema": {
             "json": {
               "type": "object",
@@ -970,3 +976,79 @@ Resources:
             }
           }
         }
+
+  WebSearchClassicToolFunction:
+    Condition: IsWebSearchEnabled
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-tools-websearch-classic"
+      Handler: tools/websearch.classic
+      Timeout: 30
+      MemorySize: 128
+      Environment:
+        Variables:
+          SERPAPI_KEY: !Ref SerpApiKey
+  
+  WebSearchClassicToolParameter:
+    Condition: IsWebSearchEnabled
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/tools/websearch-classic"
+      Type: String
+      Value: !Sub |
+        {
+          "name": "websearch-classic",
+          "description": "Perform a web search and get the results. You can use this tool to perform a web search and get the results. The tool will respond with the title, link and snippet of the results. Use this tool when you need to get information from the web",
+          "inputSchema": {
+            "json": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string",
+                  "description": "The query to search on the web"
+                }
+              },
+              "required": [
+                "query"
+              ]
+            }
+          }
+        }
+
+  WebSearchAiModeToolFunction:
+    Condition: IsWebSearchEnabled
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-tools-websearch-aimode"
+      Handler: tools/websearch.aimode
+      Timeout: 30
+      MemorySize: 128
+      Environment:
+        Variables:
+          SERPAPI_KEY: !Ref SerpApiKey
+
+  WebSearchAiModeToolParameter:
+    Condition: IsWebSearchEnabled
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/tools/websearch-aimode"
+      Type: String
+      Value: !Sub |
+        {
+          "name": "websearch-aimode",
+          "description": "Perform a web search in AI mode and get the results. You can use this tool to perform a web search in AI mode and get the results. The tool will respond with an answer based on the most relevant results. Use this tool when you need to get information from the web and want the answer to be more concise and based on the most relevant results, instead of getting all the details of each result like with the websearch-classic tool",
+          "inputSchema": {
+            "json": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string",
+                  "description": "The query to search on the web"
+                }
+              },
+              "required": [
+                "query"
+              ]
+            }
+          }
+        }      

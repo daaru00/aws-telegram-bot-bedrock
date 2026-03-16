@@ -5,6 +5,8 @@ import { saveData, getData } from '../lib/data.mjs'
  * @returns {import('@aws-sdk/client-bedrock-runtime').ToolResultBlock}
  */
 export async function save ({ toolUseId, input }) {
+	console.debug('preferences save', input)
+
 	try {
 		let preferences = await getData(input.chat_id, 'preferences')
 		if (!preferences) {
@@ -37,6 +39,8 @@ export async function save ({ toolUseId, input }) {
  * @returns {import('@aws-sdk/client-bedrock-runtime').ToolResultBlock}
  */
 export async function get ({ toolUseId, input }) {
+	console.debug('preferences get', input)
+
 	let result = ''
 	try {
 		result = await getData(input.chat_id, 'preferences')
