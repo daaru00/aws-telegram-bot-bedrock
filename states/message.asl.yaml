@@ -4,10 +4,12 @@ States:
     Type: Task
     Resource: arn:aws:states:::aws-sdk:dynamodb:putItem
     Parameters:
-      TableName: ${StatusTableName}
+      TableName: ${DataTableName}
       Item:
         chat_id:
           N.$: "States.Format('{}',$.detail.message.chat.id)"
+        entity:
+          S: "lock"
       ConditionExpression: attribute_not_exists(#chat_id)
       ExpressionAttributeNames:
         "#chat_id": chat_id
@@ -190,8 +192,10 @@ States:
     Type: Task
     Resource: arn:aws:states:::aws-sdk:dynamodb:deleteItem
     Parameters:
-      TableName: ${StatusTableName}
+      TableName: ${DataTableName}
       Key:
         chat_id:
           N.$: "States.Format('{}',$.detail.message.chat.id)"
+        entity:
+          S: "lock"
     End: true

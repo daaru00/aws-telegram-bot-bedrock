@@ -1,8 +1,8 @@
 import path from 'node:path'
 import { loadHistory, saveHistory, limitHistory } from './lib/history.mjs'
-import { downloadFile, sendTypingAction } from './lib/telegram.mjs'
+import { downloadFile, sendTypingAction, sendMessageStream } from './lib/telegram.mjs'
 import { generateResponseStream, listTools } from './lib/bedrock.mjs'
-import { retrieveAndGenerate } from './lib/knowledge.mjs'
+import { getData } from './lib/data.mjs'
 
 const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT
 const KNOWLEDGE_BASE_ENABLED = process.env.KNOWLEDGE_BASE_ID !== ''
@@ -49,16 +49,11 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 
 	if (KNOWLEDGE_BASE_ENABLED) {
 		systemPrompt += '\nBefore asking the user for information, check in your memory (using the \'memory-search\' tool) if you already know the answer, if so, don\'t ask but use the information you have.'
-		const knowledgeBaseResponse = await retrieveAndGenerate(`A short and concise summary of what you know about ${user}, his way of thinking, his preferences, what he is doing or is about to do and the people connected to him.`, {
-			equals: {
-				key: 'chat_id',
-				value: `${chat_id}`
-			}
-		})
-		if (knowledgeBaseResponse) {
-			systemPrompt += `\nUser information taken from memory: ${knowledgeBaseResponse}`
-			console.log('knowledgeBase', knowledgeBaseResponse)
-		}
+	}
+
+	let preferences = await getData(chat_id, 'preferences')
+	if (preferences && Object.keys(preferences).length > 0) {
+		systemPrompt += `\nThe user has the following preferences: \n${Object.entries(preferences).map(([key, value]) => `- ${key}: ${value}`).join('\n')}`
 	}
 
 	let messages = await loadHistory(chat_id)
@@ -198,8 +193,21 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 	const tools = await listTools()
 	console.log('available tools', tools.length)
 
+	console.log('preparing stream..')
+	const streamId = Date.now()
+	let streamContent = ''
+
+	const timeStream = setInterval(() => {
+		if (streamContent.length > 0) {
+			console.log('writing', streamContent)
+			sendMessageStream(chat_id, streamId, streamContent)
+		}
+	}, 500)
+
 	console.log('generating..')
-	const { response, toolUses, usage, stopReason } = await generateResponseStream(systemPrompt, messages, tools)
+	const { response, toolUses, usage, stopReason } = await generateResponseStream(systemPrompt, messages, tools, (text) => {
+		streamContent += text
+	})
 
 	console.log('toolUses', toolUses)
 	console.log('usage', JSON.stringify(usage))
@@ -224,6 +232,7 @@ export async function handler ({ message, toolUses: previousToolUses = [], toolR
 	})
 
 	clearInterval(timerTyping)
+	clearInterval(timeStream)
 
 	return {
 		stopReason,

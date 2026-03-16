@@ -46,3 +46,26 @@ export async function sendTypingAction(chatId) {
 		})
 	})
 }
+
+/**
+ * @param {number} chatId
+ * @param {number} draftId
+ * @param {string} text 
+ * @returns {Promise<void>}
+ */
+export async function sendMessageStream(chatId, draftId, text) {
+	console.debug('sendMessageStream', chatId, draftId, text)
+	const response = await fetch(`${TELEGRAM_API_ENDPOINT}/bot${TELEGRAM_BOT_TOKEN}/sendMessageDraft`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			chat_id: chatId,
+			text,
+			draft_id: draftId,
+			parse_mode: 'HTML',
+		})
+	})
+	console.debug('sendMessageStream', response.status, await response.text())
+}

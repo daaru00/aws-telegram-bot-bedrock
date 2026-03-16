@@ -22,7 +22,7 @@ Parameters:
   MessageModelId:
     Type: String
     Description: "Model identifier or inference profile ARN"
-    Default: "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+    Default: "us.anthropic.claude-sonnet-4-6"
   CompletionModelId:
     Type: String
     Description: "Model identifier or inference profile ARN for completions"
@@ -130,7 +130,7 @@ Resources:
       Policies:
         - PolicyName: api-gateway-eventbridge
           PolicyDocument:
-            Version: 2012-10-17
+            Version: '2012-10-17'
             Statement:
               - Effect: Allow
                 Action:
@@ -184,7 +184,7 @@ Resources:
             InputTemplate: |
               {
                 "url": "<url>"
-              }
+              } 
 
   SendMessageRule:
     Type: AWS::Events::Rule
@@ -385,17 +385,21 @@ Resources:
             ExpirationInDays: 30
             Status: Enabled
 
-  StatusTable:
+  DataTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "${AWS::StackName}-status"
+      TableName: !Sub "${AWS::StackName}"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: chat_id
           AttributeType: N
+        - AttributeName: entity
+          AttributeType: S
       KeySchema:
         - AttributeName: chat_id
           KeyType: HASH
+        - AttributeName: entity
+          KeyType: RANGE
 
   ##
   # Integration
@@ -418,12 +422,12 @@ Resources:
           MAX_TOKENS: !Ref MessageMaxTokens
           TELEGRAM_API_ENDPOINT: !Ref TelegramApiEndpoint
           TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
-          KNOWLEDGE_BASE_ID: !If [IsKnowledgeBaseEnabled, !Ref KnowledgeBaseId, ""]
-          KNOWLEDGE_BASE_MODEL_ARN: !If [IsKnowledgeBaseEnabled, !Ref CompletionModelId, ""]
-          KNOWLEDGE_BASE_MAX_TOKENS: !Ref KnowledgeBaseMaxTokens
+          DATA_TABLE_NAME: !Ref DataTable
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref ChatHistoryBucket
+        - DynamoDBReadPolicy:
+            TableName: !Ref DataTable
         - Statement:
           - Effect: "Allow"
             Action: "ssm:GetParametersByPath"
@@ -434,16 +438,6 @@ Resources:
               - "bedrock:InvokeModel"
               - "bedrock:InvokeModelWithResponseStream"
             Resource: "*"
-        - !If
-          - IsKnowledgeBaseEnabled
-          - Statement:
-              Effect: "Allow"
-              Action: 
-                - "bedrock:Retrieve"
-                - "bedrock:RetrieveAndGenerate"
-              Resource: 
-                - !Sub "arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/${KnowledgeBaseId}"
-          - !Ref "AWS::NoValue"
 
   BedrockIntegrationCompletionFunction:
     Type: AWS::Serverless::Function
@@ -467,7 +461,7 @@ Resources:
       Name: !Sub "${AWS::StackName}-message"
       DefinitionUri: states/message.asl.yaml
       DefinitionSubstitutions:
-        StatusTableName: !Ref StatusTable
+        DataTableName: !Ref DataTable
         EventBusName: !Ref EventBus
         EventSource: !Ref AWS::StackName
         MessageFunctionArn: !GetAtt BedrockIntegrationMessageFunction.Arn
@@ -476,7 +470,7 @@ Resources:
         TranscribeStateMachineArn: !GetAtt TranscribeStateMachine.Arn
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: !Ref StatusTable
+            TableName: !Ref DataTable
         - EventBridgePutEventsPolicy:
             EventBusName: !Ref EventBus
         - LambdaInvokePolicy:
@@ -897,6 +891,82 @@ Resources:
               "required": [
                 "id"
               ]
+            }
+          }
+        }
+
+  PreferencesSaveToolFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-tools-preferences-save"
+      Handler: tools/preferences.save
+      Timeout: 6
+      MemorySize: 128
+      Environment:
+        Variables:
+          DATA_TABLE_NAME: !Ref DataTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DataTable
+
+  PreferencesSaveToolParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/tools/preferences-save"
+      Type: String
+      Value: !Sub |
+        {
+          "name": "preferences-save",
+          "description": "Save user preferences. You can use this tool to save user preferences that you want to remember during the conversation. The preferences are saved as key-value pairs, where the key is the name of the preference and the value is the value of the preference. You can save any kind of preference, such as 'preferred language', 'tone of voice', 'emoji usage' etc. Just choose a name for the preference (in the 'key' field) and provide the value (in the 'value' field).",
+          "inputSchema": {
+            "json": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "description": "The name of the preference to save"
+                },
+                "value": {
+                  "type": "string",
+                  "description": "The value of the preference to save"
+                }
+              },
+              "required": [
+                "key",
+                "value"
+              ]
+            }
+          }
+        } 
+
+  PreferencesGetToolFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-tools-preferences-get"
+      Handler: tools/preferences.get
+      Timeout: 6
+      MemorySize: 128
+      Environment:
+        Variables:
+          DATA_TABLE_NAME: !Ref DataTable
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref DataTable
+
+  PreferencesGetToolParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/tools/preferences-get"
+      Type: String
+      Value: !Sub |
+        {
+          "name": "preferences-get",
+          "description": "Get user preferences. You can use this tool to get user preferences that you have previously saved with the preferences-save tool. The tool will respond with all key-value pairs.",
+          "inputSchema": {
+            "json": {
+              "type": "object",
+              "properties": {},
+              "required": []
             }
           }
         }
